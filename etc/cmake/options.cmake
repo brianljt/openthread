@@ -142,8 +142,8 @@ if(OT_CSL_DEBUG)
     target_compile_definitions(ot-config INTERFACE "OPENTHREAD_CONFIG_MAC_CSL_DEBUG_ENABLE=1")
 endif()
 
-option(OT_SSED_SSED_LINK "enable SSED-to-SSED link")
-if(OT_SSED_SSED_LINK)
+option(OT_S2S "enable S2S")
+if(OT_S2S)
     target_compile_definitions(ot-config INTERFACE "OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE=1")
 endif()
 
