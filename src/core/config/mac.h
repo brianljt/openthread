@@ -407,4 +407,18 @@
 #define OPENTHREAD_CONFIG_CSL_RECEIVE_TIME_AHEAD 2
 #endif
 
+/**
+ * @def OPENTHREAD_CONFIG_MAC_SED_TO_SED_ENABLE
+ *
+ * SED-to-SED option.
+ *
+ * This is an experimental feature. This feature enables an SED to do CSL transmission (as CSL Transmitter) and
+ * indirect transmission, thus enabling SED to SED communication. When an SED is connected to another SED, they are
+ * detached and not in any Thread network.
+ *
+ */
+#ifndef OPENTHREAD_CONFIG_MAC_SED_TO_SED_ENABLE
+#define OPENTHREAD_CONFIG_MAC_SED_TO_SED_ENABLE 0
+#endif
+
 #endif // CONFIG_MAC_H_

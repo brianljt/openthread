@@ -93,6 +93,8 @@
 #include "thread/link_metrics.hpp"
 #endif
 
+#include "thread/s2s.hpp"
+
 #endif // (OPENTHREAD_CONFIG_THREAD_VERSION >= OT_THREAD_VERSION_1_2)
 
 #if OPENTHREAD_CONFIG_BORDER_ROUTING_ENABLE
@@ -481,12 +483,14 @@ template <> inline NeighborTable &Instance::Get(void)
     return mThreadNetif.mMleRouter.mNeighborTable;
 }
 
-#if OPENTHREAD_FTD
+#if OPENTHREAD_FTD || OPENTHREAD_MTD_S2S
 template <> inline ChildTable &Instance::Get(void)
 {
     return mThreadNetif.mMleRouter.mChildTable;
 }
+#endif
 
+#if OPENTHREAD_FTD
 template <> inline RouterTable &Instance::Get(void)
 {
     return mThreadNetif.mMleRouter.mRouterTable;
@@ -552,8 +556,7 @@ template <> inline Ip6::Filter &Instance::Get(void)
     return mThreadNetif.mIp6Filter;
 }
 
-#if OPENTHREAD_FTD
-
+#if OPENTHREAD_FTD || OPENTHREAD_MTD_S2S
 template <> inline IndirectSender &Instance::Get(void)
 {
     return mThreadNetif.mMeshForwarder.mIndirectSender;
@@ -569,13 +572,15 @@ template <> inline DataPollHandler &Instance::Get(void)
     return mThreadNetif.mMeshForwarder.mIndirectSender.mDataPollHandler;
 }
 
-#if !OPENTHREAD_MTD && OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
+#if OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
 template <> inline CslTxScheduler &Instance::Get(void)
 {
     return mThreadNetif.mMeshForwarder.mIndirectSender.mCslTxScheduler;
 }
 #endif
+#endif
 
+#if OPENTHREAD_FTD
 template <> inline AddressResolver &Instance::Get(void)
 {
     return mThreadNetif.mAddressResolver;
