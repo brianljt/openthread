@@ -80,7 +80,7 @@ using ot::Spinel::Decoder;
 namespace ot {
 namespace Spinel {
 
-static otError SpinelStatusToOtError(spinel_status_t aError)
+static inline otError SpinelStatusToOtError(spinel_status_t aError)
 {
     otError ret;
 
@@ -154,7 +154,7 @@ static otError SpinelStatusToOtError(spinel_status_t aError)
     return ret;
 }
 
-static void LogIfFail(const char *aText, otError aError)
+static inline void LogIfFail(const char *aText, otError aError)
 {
     OT_UNUSED_VARIABLE(aText);
     OT_UNUSED_VARIABLE(aError);
@@ -220,7 +220,9 @@ RadioSpinel<InterfaceType, ProcessContextType>::RadioSpinel(void)
 }
 
 template <typename InterfaceType, typename ProcessContextType>
-void RadioSpinel<InterfaceType, ProcessContextType>::Init(bool aResetRadio, bool aRestoreDatasetFromNcp)
+void RadioSpinel<InterfaceType, ProcessContextType>::Init(bool aResetRadio,
+                                                          bool aRestoreDatasetFromNcp,
+                                                          bool aSkipRcpCompatibilityCheck)
 {
     otError error = OT_ERROR_NONE;
     bool    supportsRcpApiVersion;
@@ -253,8 +255,11 @@ void RadioSpinel<InterfaceType, ProcessContextType>::Init(bool aResetRadio, bool
         DieNow(exitCode);
     }
 
-    SuccessOrDie(CheckRcpApiVersion(supportsRcpApiVersion));
-    SuccessOrDie(CheckRadioCapabilities());
+    if (!aSkipRcpCompatibilityCheck)
+    {
+        SuccessOrDie(CheckRcpApiVersion(supportsRcpApiVersion));
+        SuccessOrDie(CheckRadioCapabilities());
+    }
 
     mRxRadioFrame.mPsdu  = mRxPsdu;
     mTxRadioFrame.mPsdu  = mTxPsdu;
@@ -2324,6 +2329,24 @@ otError RadioSpinel<InterfaceType, ProcessContextType>::SetChannelMaxTransmitPow
     VerifyOrExit(aChannel >= Radio::kChannelMin && aChannel <= Radio::kChannelMax, error = OT_ERROR_INVALID_ARGS);
     mMaxPowerTable.SetTransmitPower(aChannel, aMaxPower);
     error = Set(SPINEL_PROP_PHY_CHAN_MAX_POWER, SPINEL_DATATYPE_UINT8_S SPINEL_DATATYPE_INT8_S, aChannel, aMaxPower);
+
+exit:
+    return error;
+}
+
+template <typename InterfaceType, typename ProcessContextType>
+otError RadioSpinel<InterfaceType, ProcessContextType>::SetRadioRegion(uint16_t aRegionCode)
+{
+    return Set(SPINEL_PROP_PHY_REGION_CODE, SPINEL_DATATYPE_UINT16_S, aRegionCode);
+}
+
+template <typename InterfaceType, typename ProcessContextType>
+otError RadioSpinel<InterfaceType, ProcessContextType>::GetRadioRegion(uint16_t *aRegionCode)
+{
+    otError error = OT_ERROR_NONE;
+
+    VerifyOrExit(aRegionCode != nullptr, error = OT_ERROR_INVALID_ARGS);
+    error = Get(SPINEL_PROP_PHY_REGION_CODE, SPINEL_DATATYPE_UINT16_S, aRegionCode);
 
 exit:
     return error;

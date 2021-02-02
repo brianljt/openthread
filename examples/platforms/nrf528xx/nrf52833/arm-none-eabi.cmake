@@ -1,6 +1,5 @@
-#!/usr/bin/expect -f
 #
-#  Copyright (c) 2020, The OpenThread Authors.
+#  Copyright (c) 2021, The OpenThread Authors.
 #  All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
@@ -27,30 +26,31 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 #
 
-source "tests/scripts/expect/_common.exp"
+set(CMAKE_SYSTEM_NAME              Generic)
+set(CMAKE_SYSTEM_PROCESSOR         ARM)
 
+set(CMAKE_C_COMPILER               arm-none-eabi-gcc)
+set(CMAKE_CXX_COMPILER             arm-none-eabi-g++)
+set(CMAKE_ASM_COMPILER             arm-none-eabi-as)
+set(CMAKE_RANLIB                   arm-none-eabi-ranlib)
 
-set spawn_id [spawn_node 1]
+execute_process(COMMAND ${CMAKE_CXX_COMPILER} -dumpversion OUTPUT_VARIABLE COMPILER_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-send "panid 0xface\n"
-expect "Done"
-send "ifconfig up\n"
-expect "Done"
-send "thread start\n"
-expect "Done"
+set(COMMON_C_FLAGS                 "-mcpu=cortex-m4 -mfloat-abi=hard -mfpu=fpv4-sp-d16 -mthumb -mabi=aapcs -fdata-sections -ffunction-sections")
 
-wait_for "state" "leader"
-expect "Done"
+if(COMPILER_VERSION VERSION_GREATER_EQUAL 7)
+    set(COMMON_C_FLAGS             "${COMMON_C_FLAGS} -Wno-expansion-to-defined")
+endif()
 
-send "ping fdde:ad00:beef:0:0:ff:fe00:fc00\n"
-expect "Done"
-expect "16 bytes from "
-expect {
-    "fdde:ad00:beef:0:0:ff:fe00:fc00" abort
+set(CMAKE_C_FLAGS_INIT             "${COMMON_C_FLAGS} -std=gnu99")
+set(CMAKE_CXX_FLAGS_INIT           "${COMMON_C_FLAGS} -fno-exceptions -fno-rtti")
+set(CMAKE_ASM_FLAGS_INIT           "${COMMON_C_FLAGS} -x assembler-with-cpp")
+set(CMAKE_EXE_LINKER_FLAGS_INIT    "${COMMON_C_FLAGS} -specs=nano.specs -specs=nosys.specs")
 
-    -re {(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4})} {}
+set(CMAKE_C_FLAGS_DEBUG            "-Og -g")
+set(CMAKE_CXX_FLAGS_DEBUG          "-Og -g")
+set(CMAKE_ASM_FLAGS_DEBUG          "-g")
 
-    timeout abort
-}
-
-dispose
+set(CMAKE_C_FLAGS_RELEASE          "-Os")
+set(CMAKE_CXX_FLAGS_RELEASE        "-Os")
+set(CMAKE_ASM_FLAGS_RELEASE        "")

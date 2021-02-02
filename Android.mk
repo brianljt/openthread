@@ -28,6 +28,8 @@
 
 LOCAL_PATH := $(call my-dir)
 
+ifeq ($(OPENTHREAD_ENABLE_ANDROID_MK),1)
+
 OPENTHREAD_DEFAULT_VERSION := $(shell cat $(LOCAL_PATH)/.default-version)
 OPENTHREAD_SOURCE_VERSION := $(shell git -C $(LOCAL_PATH) describe --always --match "[0-9].*" 2> /dev/null)
 
@@ -145,6 +147,14 @@ LOCAL_CPPFLAGS                                                              := \
     -pedantic-errors                                                           \
     $(NULL)
 
+ifeq ($(ANDROID_NDK),1)
+LOCAL_SHARED_LIBRARIES := libcutils
+
+LOCAL_CFLAGS                                             += \
+    -DOPENTHREAD_ENABLE_ANDROID_NDK=1                       \
+    $(NULL)
+endif
+
 LOCAL_SRC_FILES                                          := \
     src/core/api/backbone_router_api.cpp                    \
     src/core/api/backbone_router_ftd_api.cpp                \
@@ -176,6 +186,8 @@ LOCAL_SRC_FILES                                          := \
     src/core/api/random_crypto_api.cpp                      \
     src/core/api/random_noncrypto_api.cpp                   \
     src/core/api/server_api.cpp                             \
+    src/core/api/srp_client_api.cpp                         \
+    src/core/api/srp_server_api.cpp                         \
     src/core/api/tasklet_api.cpp                            \
     src/core/api/thread_api.cpp                             \
     src/core/api/thread_ftd_api.cpp                         \
@@ -186,6 +198,9 @@ LOCAL_SRC_FILES                                          := \
     src/core/backbone_router/bbr_manager.cpp                \
     src/core/backbone_router/multicast_listeners_table.cpp  \
     src/core/backbone_router/ndproxy_table.cpp              \
+    src/core/border_router/infra_if_platform.cpp            \
+    src/core/border_router/router_advertisement.cpp         \
+    src/core/border_router/routing_manager.cpp              \
     src/core/coap/coap.cpp                                  \
     src/core/coap/coap_message.cpp                          \
     src/core/coap/coap_secure.cpp                           \
@@ -204,6 +219,7 @@ LOCAL_SRC_FILES                                          := \
     src/core/common/trickle_timer.cpp                       \
     src/core/crypto/aes_ccm.cpp                             \
     src/core/crypto/aes_ecb.cpp                             \
+    src/core/crypto/ecdsa.cpp                               \
     src/core/crypto/hkdf_sha256.cpp                         \
     src/core/crypto/hmac_sha256.cpp                         \
     src/core/crypto/mbedtls.cpp                             \
@@ -248,6 +264,8 @@ LOCAL_SRC_FILES                                          := \
     src/core/net/ip6_headers.cpp                            \
     src/core/net/ip6_mpl.cpp                                \
     src/core/net/netif.cpp                                  \
+    src/core/net/srp_client.cpp                             \
+    src/core/net/srp_server.cpp                             \
     src/core/net/udp6.cpp                                   \
     src/core/radio/radio.cpp                                \
     src/core/radio/radio_callbacks.cpp                      \
@@ -309,6 +327,7 @@ LOCAL_SRC_FILES                                          := \
     src/posix/platform/backbone.cpp                         \
     src/posix/platform/entropy.cpp                          \
     src/posix/platform/hdlc_interface.cpp                   \
+    src/posix/platform/infra_if.cpp                         \
     src/posix/platform/logging.cpp                          \
     src/posix/platform/misc.cpp                             \
     src/posix/platform/multicast_routing.cpp                \
@@ -351,9 +370,9 @@ LOCAL_SRC_FILES                                          := \
     third_party/mbedtls/repo/library/platform.c             \
     third_party/mbedtls/repo/library/platform_util.c        \
     third_party/mbedtls/repo/library/sha256.c               \
-    third_party/mbedtls/repo/library/ssl_cookie.c           \
     third_party/mbedtls/repo/library/ssl_ciphersuites.c     \
     third_party/mbedtls/repo/library/ssl_cli.c              \
+    third_party/mbedtls/repo/library/ssl_cookie.c           \
     third_party/mbedtls/repo/library/ssl_srv.c              \
     third_party/mbedtls/repo/library/ssl_ticket.c           \
     third_party/mbedtls/repo/library/ssl_tls.c              \
@@ -403,6 +422,8 @@ LOCAL_SRC_FILES                            := \
     src/cli/cli_dataset.cpp                   \
     src/cli/cli_joiner.cpp                    \
     src/cli/cli_network_data.cpp              \
+    src/cli/cli_srp_client.cpp                \
+    src/cli/cli_srp_server.cpp                \
     src/cli/cli_uart.cpp                      \
     src/cli/cli_udp.cpp                       \
     $(NULL)
@@ -413,6 +434,10 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE := ot-cli
 LOCAL_MODULE_TAGS := eng
+
+ifneq ($(ANDROID_NDK),1)
+LOCAL_SHARED_LIBRARIES := libcutils
+endif
 
 LOCAL_C_INCLUDES                                         := \
     $(OPENTHREAD_PROJECT_INCLUDES)                          \
@@ -494,6 +519,10 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := ot-ncp
 LOCAL_MODULE_TAGS := eng
 
+ifneq ($(ANDROID_NDK),1)
+LOCAL_SHARED_LIBRARIES := libcutils
+endif
+
 LOCAL_C_INCLUDES                                         := \
     $(OPENTHREAD_PROJECT_INCLUDES)                          \
     $(LOCAL_PATH)/include                                   \
@@ -564,3 +593,5 @@ endif # ($(USE_OTBR_DAEMON), 1)
 ifneq ($(OPENTHREAD_PROJECT_ANDROID_MK),)
 include $(OPENTHREAD_PROJECT_ANDROID_MK)
 endif
+
+endif # ($(OPENTHREAD_ENABLE_ANDROID_MK),1)

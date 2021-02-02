@@ -51,6 +51,13 @@
 #include "net/udp6.hpp"
 #include "thread/mle.hpp"
 
+using IcmpType = ot::Ip6::Icmp::Header::Type;
+
+static const IcmpType sForwardICMPTypes[] = {
+    IcmpType::kTypeDstUnreach,       IcmpType::kTypePacketToBig, IcmpType::kTypeTimeExceeded,
+    IcmpType::kTypeParameterProblem, IcmpType::kTypeEchoRequest, IcmpType::kTypeEchoReply,
+};
+
 namespace ot {
 namespace Ip6 {
 
@@ -455,8 +462,7 @@ otError Ip6::SendDatagram(Message &aMessage, MessageInfo &aMessageInfo, uint8_t 
         header.SetHopLimit(static_cast<uint8_t>(kDefaultHopLimit));
     }
 
-    if (aMessageInfo.GetSockAddr().IsUnspecified() || aMessageInfo.GetSockAddr().IsMulticast() ||
-        Get<Mle::Mle>().IsAnycastLocator(aMessageInfo.GetSockAddr()))
+    if (aMessageInfo.GetSockAddr().IsUnspecified() || aMessageInfo.GetSockAddr().IsMulticast())
     {
         const NetifUnicastAddress *source = SelectSourceAddress(aMessageInfo);
 
@@ -1003,12 +1009,14 @@ otError Ip6::ProcessReceiveCallback(Message &          aMessage,
 
     if (mIsReceiveIp6FilterEnabled)
     {
+#if !OPENTHREAD_CONFIG_PLATFORM_NETIF_ENABLE
         // do not pass messages sent to an RLOC/ALOC, except Service Locator
         bool isLocator = Get<Mle::Mle>().IsMeshLocalAddress(aMessageInfo.GetSockAddr()) &&
                          aMessageInfo.GetSockAddr().GetIid().IsLocator();
 
         VerifyOrExit(!isLocator || aMessageInfo.GetSockAddr().GetIid().IsAnycastServiceLocator(),
                      error = OT_ERROR_NO_ROUTE);
+#endif
 
         switch (aIpProto)
         {
@@ -1027,30 +1035,10 @@ otError Ip6::ProcessReceiveCallback(Message &          aMessage,
         case kProtoUdp:
         {
             Udp::Header udp;
-            uint16_t    destPort;
 
             IgnoreError(aMessage.Read(aMessage.GetOffset(), udp));
+            VerifyOrExit(Get<Udp>().ShouldUsePlatformUdp(udp.GetDestinationPort()), error = OT_ERROR_NO_ROUTE);
 
-            destPort = udp.GetDestinationPort();
-
-            if ((destPort == Mle::kUdpPort) &&
-                (aMessageInfo.GetSockAddr().IsLinkLocal() || aMessageInfo.GetSockAddr().IsLinkLocalMulticast()))
-            {
-                // do not pass MLE messages
-                ExitNow(error = OT_ERROR_NO_ROUTE);
-            }
-            else if ((destPort == Tmf::kUdpPort) && Get<Tmf::TmfAgent>().IsTmfMessage(aMessageInfo))
-            {
-                // do not pass TMF messages
-                ExitNow(error = OT_ERROR_NO_ROUTE);
-            }
-
-#if OPENTHREAD_FTD
-            if (destPort == Get<MeshCoP::JoinerRouter>().GetJoinerUdpPort())
-            {
-                ExitNow(error = OT_ERROR_NO_ROUTE);
-            }
-#endif
             break;
         }
 
@@ -1278,22 +1266,47 @@ start:
         hopLimit = header.GetHopLimit();
         aMessage.Write(Header::kHopLimitFieldOffset, hopLimit);
 
-#if OPENTHREAD_CONFIG_UNSECURE_TRAFFIC_MANAGED_BY_STACK_ENABLE
-        // check whether source port is an unsecure port
+        if (aFromNcpHost && nextHeader == kProtoIcmp6)
+        {
+            uint8_t icmpType;
+            bool    isAllowedType = false;
+
+            SuccessOrExit(error = aMessage.Read(aMessage.GetOffset(), icmpType));
+            for (IcmpType type : sForwardICMPTypes)
+            {
+                if (icmpType == type)
+                {
+                    isAllowedType = true;
+                    break;
+                }
+            }
+            VerifyOrExit(isAllowedType, error = OT_ERROR_DROP);
+        }
         if (aFromNcpHost && (nextHeader == kProtoTcp || nextHeader == kProtoUdp))
         {
-            uint16_t sourcePort;
+            uint16_t sourcePort, destPort;
 
             SuccessOrExit(error = aMessage.Read(aMessage.GetOffset(), sourcePort));
+            SuccessOrExit(error = aMessage.Read(aMessage.GetOffset() + sizeof(sourcePort), destPort));
             sourcePort = HostSwap16(sourcePort);
+            destPort   = HostSwap16(destPort);
 
+            if (nextHeader == kProtoUdp)
+            {
+                VerifyOrExit(Get<Udp>().ShouldUsePlatformUdp(destPort), error = OT_ERROR_DROP);
+            }
+
+#if OPENTHREAD_CONFIG_UNSECURE_TRAFFIC_MANAGED_BY_STACK_ENABLE
+            // check whether source port is an unsecure port
             if (Get<Filter>().IsUnsecurePort(sourcePort))
             {
                 aMessage.SetLinkSecurityEnabled(false);
                 otLogInfoIp6("Disabled link security for packet to %s", header.GetDestination().ToString().AsCString());
             }
-        }
+#else
+            OT_UNUSED_VARIABLE(sourcePort);
 #endif
+        }
 
         // `SendMessage()` takes custody of message in the success case
         SuccessOrExit(error = Get<ThreadNetif>().SendMessage(aMessage));
