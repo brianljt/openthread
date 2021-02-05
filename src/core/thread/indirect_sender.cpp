@@ -31,8 +31,6 @@
  *   This file includes definitions for handling indirect transmission.
  */
 
-#if OPENTHREAD_FTD
-
 #include "indirect_sender.hpp"
 
 #include "common/code_utils.hpp"
@@ -45,6 +43,8 @@
 #include "thread/topology.hpp"
 
 namespace ot {
+
+#if OPENTHREAD_FTD || OPENTHREAD_MTD_S2S
 
 const Mac::Address &IndirectSender::ChildInfo::GetMacAddress(Mac::Address &aMacAddress) const
 {
@@ -65,7 +65,7 @@ IndirectSender::IndirectSender(Instance &aInstance)
     , mEnabled(false)
     , mSourceMatchController(aInstance)
     , mDataPollHandler(aInstance)
-#if !OPENTHREAD_MTD && OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
+#if OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
     , mCslTxScheduler(aInstance)
 #endif
 {
@@ -82,7 +82,7 @@ void IndirectSender::Stop(void)
     }
 
     mDataPollHandler.Clear();
-#if !OPENTHREAD_MTD && OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
+#if OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
     mCslTxScheduler.Clear();
 #endif
 
@@ -163,7 +163,7 @@ void IndirectSender::ClearAllMessagesForSleepyChild(Child &aChild)
     mSourceMatchController.ResetMessageCount(aChild);
 
     mDataPollHandler.RequestFrameChange(DataPollHandler::kPurgeFrame, aChild);
-#if !OPENTHREAD_MTD && OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
+#if OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
     mCslTxScheduler.Update();
 #endif
 
@@ -171,6 +171,7 @@ exit:
     return;
 }
 
+#if OPENTHREAD_FTD
 void IndirectSender::SetChildUseShortAddress(Child &aChild, bool aUseShortAddress)
 {
     VerifyOrExit(aChild.IsIndirectSourceMatchShort() != aUseShortAddress);
@@ -180,13 +181,16 @@ void IndirectSender::SetChildUseShortAddress(Child &aChild, bool aUseShortAddres
 exit:
     return;
 }
+#endif
 
 void IndirectSender::HandleChildModeChange(Child &aChild, Mle::DeviceMode aOldMode)
 {
+#if OPENTHREAD_FTD
     if (!aChild.IsRxOnWhenIdle() && (aChild.IsStateValid()))
     {
         SetChildUseShortAddress(aChild, true);
     }
+#endif
 
     // On sleepy to non-sleepy mode change, convert indirect messages in
     // the send queue destined to the child to direct.
@@ -208,7 +212,7 @@ void IndirectSender::HandleChildModeChange(Child &aChild, Mle::DeviceMode aOldMo
         mSourceMatchController.ResetMessageCount(aChild);
 
         mDataPollHandler.RequestFrameChange(DataPollHandler::kPurgeFrame, aChild);
-#if !OPENTHREAD_MTD && OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
+#if OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
         mCslTxScheduler.Update();
 #endif
     }
@@ -263,7 +267,7 @@ void IndirectSender::RequestMessageUpdate(Child &aChild)
 
         aChild.SetWaitingForMessageUpdate(true);
         mDataPollHandler.RequestFrameChange(DataPollHandler::kPurgeFrame, aChild);
-#if !OPENTHREAD_MTD && OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
+#if OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
         mCslTxScheduler.Update();
 #endif
 
@@ -295,7 +299,7 @@ void IndirectSender::RequestMessageUpdate(Child &aChild)
 
     aChild.SetWaitingForMessageUpdate(true);
     mDataPollHandler.RequestFrameChange(DataPollHandler::kReplaceFrame, aChild);
-#if !OPENTHREAD_MTD && OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
+#if OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
     mCslTxScheduler.Update();
 #endif
 
@@ -321,7 +325,7 @@ void IndirectSender::UpdateIndirectMessage(Child &aChild)
     aChild.SetIndirectFragmentOffset(0);
     aChild.SetIndirectTxSuccess(true);
 
-#if !OPENTHREAD_MTD && OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
+#if OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
     mCslTxScheduler.Update();
 #endif
 
@@ -463,7 +467,7 @@ void IndirectSender::HandleSentFrameToChild(const Mac::TxFrame &aFrame,
     {
         aChild.SetIndirectFragmentOffset(nextOffset);
         mDataPollHandler.HandleNewFrame(aChild);
-#if !OPENTHREAD_MTD && OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
+#if OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
         mCslTxScheduler.Update();
 #endif
         ExitNow();
@@ -560,6 +564,6 @@ void IndirectSender::ClearMessagesForRemovedChildren(void)
     }
 }
 
-} // namespace ot
+#endif // OPENTHREAD_FTD || OPENTHREAD_MTD_S2S
 
-#endif // #if OPENTHREAD_FTD
+} // namespace ot
