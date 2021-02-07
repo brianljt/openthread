@@ -545,3 +545,33 @@ otError otLinkSendEmptyData(otInstance *aInstance)
     return instance.Get<MeshForwarder>().SendEmptyMessage();
 }
 #endif
+
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+otError otLinkSetSsedToSsedMode(otInstance *aInstance, otMacSsedToSsedMode aMode)
+{
+    Instance &instance = *static_cast<Instance *>(aInstance);
+
+    return instance.Get<Mac::Mac>().SetSsedToSsedMode(static_cast<Mac::Mac::SsedToSsedMode>(aMode));
+}
+
+otMacSsedToSsedMode otLinkGetSsedToSsedMode(otInstance *aInstance)
+{
+    Instance &instance = *static_cast<Instance *>(aInstance);
+
+    return static_cast<otMacSsedToSsedMode>(instance.Get<Mac::Mac>().GetSsedToSsedMode());
+}
+
+otError otLinkSetSsedBeaconPeriod(otInstance *aInstance, uint16_t aPeriod)
+{
+    Instance &instance = *static_cast<Instance *>(aInstance);
+
+    return instance.Get<Mac::Mac>().SetSsedBeaconPeriod(aPeriod);
+}
+
+uint16_t otLinkGetSsedBeaconPeriod(otInstance *aInstance)
+{
+    Instance &instance = *static_cast<Instance *>(aInstance);
+
+    return instance.Get<Mac::Mac>().GetSsedBeaconPeriod();
+}
+#endif

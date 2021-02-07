@@ -354,6 +354,11 @@ private:
 #endif
     otError ProcessCounters(uint8_t aArgsLength, char *aArgs[]);
     otError ProcessCsl(uint8_t aArgsLength, char *aArgs[]);
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+    otError     ProcessSsedToSsedMode(uint8_t aArgsLength, char *aArgs[]);
+    otError     ProcessSsedBeaconPeriod(uint8_t aArgsLength, char *aArgs[]);
+    const char *GetSsedToSsedModeInfo(void);
+#endif
 #if OPENTHREAD_FTD
     otError ProcessDelayTimerMin(uint8_t aArgsLength, char *aArgs[]);
 #endif
@@ -789,6 +794,20 @@ private:
         {"unsecureport", &Interpreter::ProcessUnsecurePort},
         {"version", &Interpreter::ProcessVersion},
     };
+
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+    struct SsedToSsedModeInfo
+    {
+        otMacSsedToSsedMode mId;
+        const char *        mString;
+    };
+
+    static constexpr SsedToSsedModeInfo sModeInfo[] = {
+        {OT_MAC_SSED_TO_SSED_MODE_CENTER, "Center"},
+        {OT_MAC_SSED_TO_SSED_MODE_END, "End"},
+        {OT_MAC_SSED_TO_SSED_MODE_NONE, "None"},
+    };
+#endif
 
     static_assert(Utils::LookupTable::IsSorted(sCommands), "Command Table is not sorted");
 
