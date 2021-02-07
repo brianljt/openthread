@@ -249,7 +249,10 @@ otError MeshForwarder::SendMessage(Message &aMessage)
     return OT_ERROR_NONE;
 }
 
-void MeshForwarder::PrepareEmptyFrame(Mac::TxFrame &aFrame, const Mac::Address &aMacDest, bool aAckRequest)
+void MeshForwarder::PrepareEmptyFrame(Mac::TxFrame &      aFrame,
+                                      const Mac::Address &aMacDest,
+                                      bool                aAckRequest,
+                                      bool                aSecurity)
 {
     uint16_t fcf       = 0;
     bool     iePresent = CalcIePresent(nullptr);
@@ -262,7 +265,12 @@ void MeshForwarder::PrepareEmptyFrame(Mac::TxFrame &aFrame, const Mac::Address &
         macSource.SetExtended(Get<Mac::Mac>().GetExtAddress());
     }
 
-    fcf = Mac::Frame::kFcfFrameData | Mac::Frame::kFcfPanidCompression | Mac::Frame::kFcfSecurityEnabled;
+    fcf = Mac::Frame::kFcfFrameData | Mac::Frame::kFcfPanidCompression;
+
+    if (aSecurity)
+    {
+        fcf |= Mac::Frame::kFcfSecurityEnabled;
+    }
 
     if (iePresent)
     {
@@ -388,6 +396,12 @@ Message *MeshForwarder::GetDirectTransmission(void)
 
 #if OPENTHREAD_CONFIG_REFERENCE_DEVICE_ENABLE
         case Message::kTypeMacEmptyData:
+            error = OT_ERROR_NONE;
+            break;
+#endif
+
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+        case Message::kTypeSsedBeacon:
             error = OT_ERROR_NONE;
             break;
 #endif
@@ -607,7 +621,7 @@ Mac::TxFrame *MeshForwarder::HandleFrameRequest(Mac::TxFrames &aTxFrames)
             VerifyOrExit(frame != nullptr);
         }
 #if OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
-        if (Get<Mac::Mac>().IsCslEnabled() && mSendMessage->IsSubTypeMle())
+        if (Get<Mac::Mac>().IsAttachedCslReceiver() && mSendMessage->IsSubTypeMle())
         {
             mSendMessage->SetLinkSecurityEnabled(true);
         }
@@ -632,6 +646,17 @@ Mac::TxFrame *MeshForwarder::HandleFrameRequest(Mac::TxFrames &aTxFrames)
 
         macDestAddr.SetShort(Get<Mle::MleRouter>().GetParent().GetRloc16());
         PrepareEmptyFrame(*frame, macDestAddr, /* aAckRequest */ true);
+    }
+    break;
+#endif
+
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+    case Message::kTypeSsedBeacon:
+    {
+        Mac::Address macDestAddr;
+
+        macDestAddr.SetShort(0xffff);
+        PrepareEmptyFrame(*frame, macDestAddr, /* aAckRequest */ false, /* aSecurity */ false);
     }
     break;
 #endif
@@ -1232,6 +1257,12 @@ void MeshForwarder::HandleReceivedFrame(Mac::RxFrame &aFrame)
             VerifyOrExit(payloadLength == 0, error = OT_ERROR_NOT_LOWPAN_DATA_FRAME);
 
             LogFrame("Received empty payload frame", aFrame, OT_ERROR_NONE);
+
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+            VerifyOrExit(Get<Mle::Mle>().IsDetached(), error = OT_ERROR_DROP);
+
+            Get<Mle::Mle>().HandleSsedBeacon(aFrame);
+#endif
         }
 
         break;
@@ -1639,7 +1670,11 @@ bool MeshForwarder::CalcIePresent(const Message *aMessage)
     iePresent |= (aMessage != nullptr && aMessage->IsTimeSync());
 #endif
 #if OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
-    iePresent |= Get<Mac::Mac>().IsCslEnabled();
+    iePresent |= (
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+        (aMessage == nullptr || aMessage->GetSubType() != Message::kSubTypeMleAnnounce) &
+#endif
+        Get<Mac::Mac>().IsCslEnabledInRadio());
 #endif
 
     return iePresent;
@@ -1661,7 +1696,11 @@ void MeshForwarder::AppendHeaderIe(const Message *aMessage, Mac::Frame &aFrame)
     }
 #endif
 #if OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
-    if (Get<Mac::Mac>().IsCslEnabled())
+    if (Get<Mac::Mac>().IsCslEnabledInRadio()
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+        && (aMessage == nullptr || aMessage->GetSubType() != Message::kSubTypeMleAnnounce)
+#endif
+    )
     {
         IgnoreError(aFrame.AppendHeaderIeAt<Mac::CslIe>(index));
         iePresent = true;
@@ -1700,6 +1739,24 @@ uint16_t MeshForwarder::CalcFrameVersion(const Neighbor *aNeighbor, bool aIePres
 
     return version;
 }
+
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+otError MeshForwarder::SendSsedBeacon(void)
+{
+    otError  error   = OT_ERROR_NONE;
+    Message *message = nullptr;
+
+    message = Get<MessagePool>().New(Message::kTypeSsedBeacon, 0);
+    VerifyOrExit(message != nullptr, error = OT_ERROR_NO_BUFS);
+
+    SuccessOrExit(error = SendMessage(*message));
+
+exit:
+    FreeMessageOnError(message, error);
+    otLogDebgMac("Send SSED Beacon, error:%s", otThreadErrorToString(error));
+    return error;
+}
+#endif
 
 // LCOV_EXCL_START
 

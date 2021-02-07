@@ -959,6 +959,16 @@ otError otPlatRadioGetCoexMetrics(otInstance *aInstance, otRadioCoexMetrics *aCo
 otError otPlatRadioEnableCsl(otInstance *aInstance, uint32_t aCslPeriod, const otExtAddress *aExtAddr);
 
 /**
+ * Indicates if CSL Receiver is enabled in radio.
+ *
+ * @param[in]  aInstance  The OpenThread instance structure.
+ *
+ * @retval TRUE if CSL is enabled in radio, FALSE otherwise.
+ *
+ */
+bool otPlatRadioIsCslEnabled(otInstance *aInstance);
+
+/**
  * Update CSL sample time in radio driver.
  *
  * Sample time is stored in radio driver as a copy to calculate phase when sending ACK with CSL IE.

@@ -1360,6 +1360,13 @@ otError otPlatRadioEnableCsl(otInstance *aInstance, uint32_t aCslPeriod, const o
     return error;
 }
 
+bool otPlatRadioIsCslEnabled(otInstance *aInstance)
+{
+    OT_UNUSED_VARIABLE(aInstance);
+
+    return sCslPeriod > 0;
+}
+
 void otPlatRadioUpdateCslSampleTime(otInstance *aInstance, uint32_t aCslSampleTime)
 {
     OT_UNUSED_VARIABLE(aInstance);

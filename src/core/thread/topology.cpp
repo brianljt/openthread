@@ -237,18 +237,18 @@ void Child::Info::SetFrom(const Child &aChild)
     mTimeout            = aChild.GetTimeout();
     mNetworkDataVersion = aChild.GetNetworkDataVersion();
 #endif
-    mAge                = Time::MsecToSec(TimerMilli::GetNow() - aChild.GetLastHeard());
-    mLinkQualityIn      = aChild.GetLinkInfo().GetLinkQuality();
-    mAverageRssi        = aChild.GetLinkInfo().GetAverageRss();
-    mLastRssi           = aChild.GetLinkInfo().GetLastRss();
-    mFrameErrorRate     = aChild.GetLinkInfo().GetFrameErrorRate();
-    mMessageErrorRate   = aChild.GetLinkInfo().GetMessageErrorRate();
-    mQueuedMessageCnt   = aChild.GetIndirectMessageCount();
-    mVersion            = aChild.GetVersion();
-    mRxOnWhenIdle       = aChild.IsRxOnWhenIdle();
-    mFullThreadDevice   = aChild.IsFullThreadDevice();
-    mFullNetworkData    = aChild.IsFullNetworkData();
-    mIsStateRestoring   = aChild.IsStateRestoring();
+    mAge              = Time::MsecToSec(TimerMilli::GetNow() - aChild.GetLastHeard());
+    mLinkQualityIn    = aChild.GetLinkInfo().GetLinkQuality();
+    mAverageRssi      = aChild.GetLinkInfo().GetAverageRss();
+    mLastRssi         = aChild.GetLinkInfo().GetLastRss();
+    mFrameErrorRate   = aChild.GetLinkInfo().GetFrameErrorRate();
+    mMessageErrorRate = aChild.GetLinkInfo().GetMessageErrorRate();
+    mQueuedMessageCnt = aChild.GetIndirectMessageCount();
+    mVersion          = aChild.GetVersion();
+    mRxOnWhenIdle     = aChild.IsRxOnWhenIdle();
+    mFullThreadDevice = aChild.IsFullThreadDevice();
+    mFullNetworkData  = aChild.IsFullNetworkData();
+    mIsStateRestoring = aChild.IsStateRestoring();
 #if OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
     mIsCslSynced = aChild.IsCslSynchronized();
 #else

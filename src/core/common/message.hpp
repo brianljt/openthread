@@ -319,6 +319,9 @@ public:
         kTypeSupervision  = 2, ///< A child supervision frame.
         kTypeMacEmptyData = 3, ///< An empty MAC data frame.
         kTypeOther        = 4, ///< Other (data) message.
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+        kTypeSsedBeacon = 5, ///< Beacon for SSED to SSED link.
+#endif
     };
 
     /**
