@@ -571,8 +571,6 @@ void MleRouter::HandleLinkRequest(const Message &aMessage, const Ip6::MessageInf
 
     Log(kMessageReceive, kTypeLinkRequest, aMessageInfo.GetPeerAddr());
 
-    VerifyOrExit(IsRouterOrLeader(), error = OT_ERROR_INVALID_STATE);
-
     VerifyOrExit(!IsAttaching(), error = OT_ERROR_INVALID_STATE);
 
     // Challenge

@@ -821,6 +821,10 @@ protected:
         kTypeParentRequestToRouters,
         kTypeParentRequestToRoutersReeds,
         kTypeParentResponse,
+        kTypeLinkAccept,
+        kTypeLinkAcceptAndRequest,
+        kTypeLinkReject,
+        kTypeLinkRequest,
 #if OPENTHREAD_FTD
         kTypeAddressRelease,
         kTypeAddressReleaseReply,
@@ -829,10 +833,6 @@ protected:
         kTypeChildUpdateRequestOfChild,
         kTypeChildUpdateResponseOfChild,
         kTypeChildUpdateResponseOfUnknownChild,
-        kTypeLinkAccept,
-        kTypeLinkAcceptAndRequest,
-        kTypeLinkReject,
-        kTypeLinkRequest,
         kTypeParentRequest,
 #if OPENTHREAD_CONFIG_TIME_SYNC_ENABLE
         kTypeTimeSync,
@@ -1263,6 +1263,17 @@ protected:
      *
      */
     otError AppendCslTimeout(Message &aMessage);
+
+    /**
+     * This method appends a CSL Accuracy TLV to a message.
+     *
+     * @param[in]  aMessage  A reference to the message.
+     *
+     * @retval OT_ERROR_NONE     Successfully appended the CSL Accuracy TLV.
+     * @retval OT_ERROR_NO_BUFS  Insufficient buffers available to append the CSL Accuracy TLV.
+     *
+     */
+    otError AppendCslAccuracy(Message &aMessage);
 #endif // (!OPENTHREAD_MTD && OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE) || OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
 
     /**
@@ -1726,6 +1737,20 @@ private:
     void HandleDataResponse(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, const Neighbor *aNeighbor);
     void HandleParentResponse(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, uint32_t aKeySequence);
     void HandleAnnounce(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
+    void HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, Neighbor *aNeighbor);
+    void HandleLinkAccept(const Message &         aMessage,
+                          const Ip6::MessageInfo &aMessageInfo,
+                          Neighbor *              aNeighbor);
+    void HandleLinkAcceptAndRequest(const Message &         aMessage,
+                                    const Ip6::MessageInfo &aMessageInfo,
+                                    Neighbor *              aNeighbor);
+    otError HandleLinkAccept(const Message &         aMessage,
+                             const Ip6::MessageInfo &aMessageInfo,
+                             Neighbor *              aNeighbor,
+                             bool                    aRequest);
+    void HandleDataRequest(const Message &         aMessage,
+                           const Ip6::MessageInfo &aMessageInfo,
+                           const Neighbor *        aNeighbor);
 #if OPENTHREAD_CONFIG_MLE_LINK_METRICS_ENABLE
     void HandleLinkMetricsManagementRequest(const Message &         aMessage,
                                             const Ip6::MessageInfo &aMessageInfo,
@@ -1747,6 +1772,12 @@ private:
     void     SendAnnounce(uint8_t aChannel, bool aOrphanAnnounce, const Ip6::Address &aDestination);
 #if OPENTHREAD_CONFIG_MLE_LINK_METRICS_ENABLE
     otError SendLinkMetricsManagementResponse(const Ip6::Address &aDestination, LinkMetrics::LinkMetricsStatus aStatus);
+#endif
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+otError SendLinkAccept(const Ip6::MessageInfo &aMessageInfo,
+                       Child *                 aChild,
+                       const Challenge &       aChallenge,
+                       bool                    aRequest);
 #endif
     uint32_t Reattach(void);
 
