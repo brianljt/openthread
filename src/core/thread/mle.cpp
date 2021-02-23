@@ -2853,7 +2853,9 @@ void Mle::HandleUdpReceive(Message &aMessage, const Ip6::MessageInfo &aMessageIn
         else
 #endif
         {
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
             HandleLinkRequest(aMessage, aMessageInfo, neighbor);
+#endif
         }
         break;
 
@@ -2866,7 +2868,9 @@ void Mle::HandleUdpReceive(Message &aMessage, const Ip6::MessageInfo &aMessageIn
         else
 #endif
         {
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
             HandleLinkAccept(aMessage, aMessageInfo, neighbor);
+#endif
         }
         break;
 
@@ -2879,7 +2883,9 @@ void Mle::HandleUdpReceive(Message &aMessage, const Ip6::MessageInfo &aMessageIn
         else
 #endif
         {
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
             HandleLinkAcceptAndRequest(aMessage, aMessageInfo, neighbor);
+#endif
         }
         break;
 
@@ -2892,7 +2898,9 @@ void Mle::HandleUdpReceive(Message &aMessage, const Ip6::MessageInfo &aMessageIn
         else
 #endif
         {
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
             HandleDataRequest(aMessage, aMessageInfo, neighbor);
+#endif
         }
         break;
 
@@ -3904,7 +3912,8 @@ exit:
     LogProcessError(kTypeAnnounce, error);
 }
 
-void Mle::HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, Neighbor *aNeighbor)
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+otError Mle::HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, Neighbor *aNeighbor)
 {
     otError         error    = OT_ERROR_NONE;
     Child *         peerSsed = nullptr;
@@ -3915,13 +3924,10 @@ void Mle::HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &aMe
     uint16_t        addressRegistrationOffset = 0;
     Mac::ExtAddress extAddr;
 
-
-    OT_UNUSED_VARIABLE(aMessage);
     OT_UNUSED_VARIABLE(aNeighbor);
 
     Log(kMessageReceive, kTypeLinkRequest, aMessageInfo.GetPeerAddr());
 
-#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
     VerifyOrExit(mAttachState == kAttachStateIdle, error = OT_ERROR_INVALID_STATE);
 
     // Challenge
@@ -3977,24 +3983,18 @@ void Mle::HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &aMe
     // Send Response
     SuccessOrExit(error = SendLinkAccept(aMessageInfo, peerSsed, challenge, true));
 
-#endif
-
 exit:
     LogProcessError(kTypeLinkRequest, error);
 }
 
-void Mle::HandleLinkAccept(const Message &         aMessage,
-                           const Ip6::MessageInfo &aMessageInfo,
-                           Neighbor *              aNeighbor)
+void Mle::HandleLinkAccept(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, Neighbor *aNeighbor)
 {
     otError error = HandleLinkAccept(aMessage, aMessageInfo, aNeighbor, false);
 
     LogProcessError(kTypeLinkAccept, error);
 }
 
-void Mle::HandleLinkAcceptAndRequest(const Message &         aMessage,
-                                     const Ip6::MessageInfo &aMessageInfo,
-                                     Neighbor *              aNeighbor)
+void Mle::HandleLinkAcceptAndRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, Neighbor *aNeighbor)
 {
     otError error = HandleLinkAccept(aMessage, aMessageInfo, aNeighbor, true);
 
@@ -4006,7 +4006,7 @@ otError Mle::HandleLinkAccept(const Message &         aMessage,
                               Neighbor *              aNeighbor,
                               bool                    aRequest)
 {
-    otError         error = OT_ERROR_NONE;
+    otError         error    = OT_ERROR_NONE;
     Child *         peerSsed = nullptr;
     Mac::ExtAddress extAddr;
     uint16_t        sourceAddress;
@@ -4017,7 +4017,6 @@ otError Mle::HandleLinkAccept(const Message &         aMessage,
     uint16_t        addressRegistrationOffset = 0;
 
     OT_UNUSED_VARIABLE(aNeighbor);
-    OT_UNUSED_VARIABLE(aRequest);
 
     // Source Address
     SuccessOrExit(error = Tlv::Find<SourceAddressTlv>(aMessage, sourceAddress));
@@ -4025,7 +4024,6 @@ otError Mle::HandleLinkAccept(const Message &         aMessage,
     Log(kMessageReceive, aRequest ? kTypeLinkAcceptAndRequest : kTypeLinkAccept, aMessageInfo.GetPeerAddr(),
         sourceAddress);
 
-#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
     // Ignore router's Link Request
     VerifyOrExit(!IsActiveRouter(sourceAddress), error = OT_ERROR_DROP);
 
@@ -4074,7 +4072,8 @@ otError Mle::HandleLinkAccept(const Message &         aMessage,
 // TODO: remove FTD constraint
 #if OPENTHREAD_FTD
             // Handle address registration TLV with valid peer
-            SuccessOrExit(error = Get<MleRouter>().UpdateChildAddresses(aMessage, addressRegistrationOffset, *peerSsed));
+            SuccessOrExit(error =
+                              Get<MleRouter>().UpdateChildAddresses(aMessage, addressRegistrationOffset, *peerSsed));
 #endif
         }
 
@@ -4085,26 +4084,18 @@ otError Mle::HandleLinkAccept(const Message &         aMessage,
 
     // TODO: SSED-SSED link established, start CSL sampling
 
-#endif
-
 exit:
     return error;
 }
 
-void Mle::HandleDataRequest(const Message &         aMessage,
-                            const Ip6::MessageInfo &aMessageInfo,
-                            const Neighbor *        aNeighbor)
+void Mle::HandleDataRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, const Neighbor *aNeighbor)
 {
     otError       error = OT_ERROR_NONE;
     RequestedTlvs requestedTlvs;
     Message *     message = nullptr;
 
-    OT_UNUSED_VARIABLE(aMessage);
-    OT_UNUSED_VARIABLE(aNeighbor);
-
     Log(kMessageReceive, kTypeDataRequest, aMessageInfo.GetPeerAddr());
 
-#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
     VerifyOrExit((message = NewMleMessage()) != nullptr, error = OT_ERROR_NO_BUFS);
     VerifyOrExit(aNeighbor && aNeighbor->IsStateValid(), error = OT_ERROR_SECURITY);
 
@@ -4124,12 +4115,12 @@ void Mle::HandleDataRequest(const Message &         aMessage,
     Log(kMessageSend, kTypeDataResponse, aMessageInfo.GetPeerAddr());
 
     LogProcessError(kTypeDataRequest, error);
-#endif
 
 exit:
     FreeMessageOnError(message, error);
     LogProcessError(kTypeDataRequest, error);
 }
+#endif // OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
 
 #if OPENTHREAD_CONFIG_MLE_LINK_METRICS_ENABLE
 void Mle::HandleLinkMetricsManagementRequest(const Message &         aMessage,
@@ -4507,6 +4498,20 @@ const char *Mle::MessageTypeToString(MessageType aType)
     case kTypeParentResponse:
         str = "Parent Response";
         break;
+#if OPENTHREAD_FTD || OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+    case kTypeLinkAccept:
+        str = "Link Accept";
+        break;
+    case kTypeLinkAcceptAndRequest:
+        str = "Link Accept and Request";
+        break;
+    case kTypeLinkReject:
+        str = "Link Reject";
+        break;
+    case kTypeLinkRequest:
+        str = "Link Request";
+        break;
+#endif
 #if OPENTHREAD_FTD
     case kTypeAddressRelease:
         str = "Address Release";
@@ -4519,18 +4524,6 @@ const char *Mle::MessageTypeToString(MessageType aType)
         break;
     case kTypeAddressSolicit:
         str = "Address Solicit";
-        break;
-    case kTypeLinkAccept:
-        str = "Link Accept";
-        break;
-    case kTypeLinkAcceptAndRequest:
-        str = "Link Accept and Request";
-        break;
-    case kTypeLinkReject:
-        str = "Link Reject";
-        break;
-    case kTypeLinkRequest:
-        str = "Link Request";
         break;
     case kTypeParentRequest:
         str = "Parent Request";

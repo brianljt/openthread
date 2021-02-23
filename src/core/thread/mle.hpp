@@ -821,10 +821,12 @@ protected:
         kTypeParentRequestToRouters,
         kTypeParentRequestToRoutersReeds,
         kTypeParentResponse,
+#if OPENTHREAD_FTD || OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
         kTypeLinkAccept,
         kTypeLinkAcceptAndRequest,
         kTypeLinkReject,
         kTypeLinkRequest,
+#endif
 #if OPENTHREAD_FTD
         kTypeAddressRelease,
         kTypeAddressReleaseReply,
@@ -1737,20 +1739,16 @@ private:
     void HandleDataResponse(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, const Neighbor *aNeighbor);
     void HandleParentResponse(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, uint32_t aKeySequence);
     void HandleAnnounce(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
     void HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, Neighbor *aNeighbor);
-    void HandleLinkAccept(const Message &         aMessage,
-                          const Ip6::MessageInfo &aMessageInfo,
-                          Neighbor *              aNeighbor);
-    void HandleLinkAcceptAndRequest(const Message &         aMessage,
-                                    const Ip6::MessageInfo &aMessageInfo,
-                                    Neighbor *              aNeighbor);
+    void HandleLinkAccept(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, Neighbor *aNeighbor);
+    void HandleLinkAcceptAndRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, Neighbor *aNeighbor);
     otError HandleLinkAccept(const Message &         aMessage,
                              const Ip6::MessageInfo &aMessageInfo,
                              Neighbor *              aNeighbor,
                              bool                    aRequest);
-    void HandleDataRequest(const Message &         aMessage,
-                           const Ip6::MessageInfo &aMessageInfo,
-                           const Neighbor *        aNeighbor);
+    void    HandleDataRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, const Neighbor *aNeighbor);
+#endif
 #if OPENTHREAD_CONFIG_MLE_LINK_METRICS_ENABLE
     void HandleLinkMetricsManagementRequest(const Message &         aMessage,
                                             const Ip6::MessageInfo &aMessageInfo,
@@ -1774,10 +1772,10 @@ private:
     otError SendLinkMetricsManagementResponse(const Ip6::Address &aDestination, LinkMetrics::LinkMetricsStatus aStatus);
 #endif
 #if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
-otError SendLinkAccept(const Ip6::MessageInfo &aMessageInfo,
-                       Child *                 aChild,
-                       const Challenge &       aChallenge,
-                       bool                    aRequest);
+    otError SendLinkAccept(const Ip6::MessageInfo &aMessageInfo,
+                           Child *                 aChild,
+                           const Challenge &       aChallenge,
+                           bool                    aRequest);
 #endif
     uint32_t Reattach(void);
 
