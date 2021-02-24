@@ -2548,7 +2548,7 @@ exit:
     FreeMessageOnError(message, error);
     return error;
 }
-#endif
+#endif // OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
 
 otError Mle::SendMessage(Message &aMessage, const Ip6::Address &aDestination)
 {
