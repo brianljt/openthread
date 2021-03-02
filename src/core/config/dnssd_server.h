@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, The OpenThread Authors.
+ *  Copyright (c) 2021, The OpenThread Authors.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,46 +28,31 @@
 
 /**
  * @file
- * @brief
- *  This file defines the PBKDF2 using CMAC C APIs.
+ *   This file includes compile-time configurations for the DNS-SD Server.
+ *
  */
 
-#ifndef PBKDF2_CMAC_H_
-#define PBKDF2_CMAC_H_
-
-#include "openthread-core-config.h"
-
-#include <stdbool.h>
-#include <stdint.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#define OT_PBKDF2_SALT_MAX_LEN 30 // salt prefix (6) + extended panid (8) + network name (16)
+#ifndef CONFIG_DNSSD_SERVER_H_
+#define CONFIG_DNSSD_SERVER_H_
 
 /**
- * This method perform PKCS#5 PBKDF2 using CMAC (AES-CMAC-PRF-128).
+ * @def OPENTHREAD_CONFIG_DNSSD_SERVER_ENABLE
  *
- * @param[in]     aPassword          Password to use when generating key.
- * @param[in]     aPasswordLen       Length of password.
- * @param[in]     aSalt              Salt to use when generating key.
- * @param[in]     aSaltLen           Length of salt.
- * @param[in]     aIterationCounter  Iteration count.
- * @param[in]     aKeyLen            Length of generated key in bytes.
- * @param[out]    aKey               A pointer to the generated key.
+ * Define to 1 to enable DNS-SD Server support.
  *
  */
-void otPbkdf2Cmac(const uint8_t *aPassword,
-                  uint16_t       aPasswordLen,
-                  const uint8_t *aSalt,
-                  uint16_t       aSaltLen,
-                  uint32_t       aIterationCounter,
-                  uint16_t       aKeyLen,
-                  uint8_t *      aKey);
-
-#ifdef __cplusplus
-} // extern "C"
+#ifndef OPENTHREAD_CONFIG_DNSSD_SERVER_ENABLE
+#define OPENTHREAD_CONFIG_DNSSD_SERVER_ENABLE 0
 #endif
 
-#endif // PBKDF2_CMAC_H_
+/**
+ * @def OPENTHREAD_CONFIG_DNSSD_SERVER_PORT
+ *
+ * Define the the DNS-SD Server port.
+ *
+ */
+#ifndef OPENTHREAD_CONFIG_DNSSD_SERVER_PORT
+#define OPENTHREAD_CONFIG_DNSSD_SERVER_PORT 53
+#endif
+
+#endif // CONFIG_DNSSD_SERVER_H_

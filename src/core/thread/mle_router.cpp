@@ -56,7 +56,7 @@ namespace Mle {
 
 MleRouter::MleRouter(Instance &aInstance)
     : Mle(aInstance)
-    , mAdvertiseTimer(aInstance, MleRouter::HandleAdvertiseTimer, nullptr, this)
+    , mAdvertiseTimer(aInstance, MleRouter::HandleAdvertiseTimer, nullptr)
     , mAddressSolicit(UriPath::kAddressSolicit, &MleRouter::HandleAddressSolicit, this)
     , mAddressRelease(UriPath::kAddressRelease, &MleRouter::HandleAddressRelease, this)
     , mChildTable(aInstance)
@@ -388,7 +388,7 @@ void MleRouter::SetStateLeader(uint16_t aRloc16)
 
 bool MleRouter::HandleAdvertiseTimer(TrickleTimer &aTimer)
 {
-    return aTimer.GetOwner<MleRouter>().HandleAdvertiseTimer();
+    return aTimer.Get<MleRouter>().HandleAdvertiseTimer();
 }
 
 bool MleRouter::HandleAdvertiseTimer(void)
@@ -946,6 +946,7 @@ otError MleRouter::HandleLinkAccept(const Message &         aMessage,
     router->SetLinkAckFrameCounter(linkFrameCounter);
     router->SetMleFrameCounter(mleFrameCounter);
     router->SetLastHeard(TimerMilli::GetNow());
+    router->SetVersion(static_cast<uint8_t>(version));
     router->SetDeviceMode(DeviceMode(DeviceMode::kModeFullThreadDevice | DeviceMode::kModeRxOnWhenIdle |
                                      DeviceMode::kModeFullNetworkData));
     router->GetLinkInfo().Clear();

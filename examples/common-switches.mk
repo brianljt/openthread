@@ -51,6 +51,7 @@ DIAGNOSTIC                ?= 0
 DISABLE_DOC               ?= 0
 DISABLE_TOOLS             ?= 0
 DNS_CLIENT                ?= 0
+DNSSD_SERVER              ?= 0
 DUA                       ?= 0
 DYNAMIC_LOG_LEVEL         ?= 0
 ECDSA                     ?= 0
@@ -80,6 +81,7 @@ SNTP_CLIENT               ?= 0
 SSED_SSED_LINK            ?= 0
 SRP_CLIENT                ?= 0
 SRP_SERVER                ?= 0
+SSED_SSED_LINK            ?= 0
 THREAD_VERSION            ?= 1.1
 TIME_SYNC                 ?= 0
 UDP_FORWARD               ?= 0
@@ -189,6 +191,10 @@ endif
 
 ifeq ($(DNS_CLIENT),1)
 COMMONCFLAGS                   += -DOPENTHREAD_CONFIG_DNS_CLIENT_ENABLE=1
+endif
+
+ifeq ($(DNSSD_SERVER),1)
+COMMONCFLAGS                   += -DOPENTHREAD_CONFIG_DNSSD_SERVER_ENABLE=1
 endif
 
 ifeq ($(DUA),1)

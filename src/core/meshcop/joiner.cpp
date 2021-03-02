@@ -62,7 +62,7 @@ Joiner::Joiner(Instance &aInstance)
     , mContext(nullptr)
     , mJoinerRouterIndex(0)
     , mFinalizeMessage(nullptr)
-    , mTimer(aInstance, Joiner::HandleTimer, this)
+    , mTimer(aInstance, Joiner::HandleTimer)
     , mJoinerEntrust(UriPath::kJoinerEntrust, &Joiner::HandleJoinerEntrust, this)
 {
     SetIdFromIeeeEui64();
@@ -615,7 +615,7 @@ exit:
 
 void Joiner::HandleTimer(Timer &aTimer)
 {
-    aTimer.GetOwner<Joiner>().HandleTimer();
+    aTimer.Get<Joiner>().HandleTimer();
 }
 
 void Joiner::HandleTimer(void)
@@ -653,31 +653,23 @@ void Joiner::HandleTimer(void)
 
 const char *Joiner::StateToString(State aState)
 {
-    const char *str = "Unknown";
+    static const char *const kStateStrings[] = {
+        "Idle",       // (0) kStateIdle
+        "Discover",   // (1) kStateDiscover
+        "Connecting", // (2) kStateConnect
+        "Connected",  // (3) kStateConnected
+        "Entrust",    // (4) kStateEntrust
+        "Joined",     // (5) kStateJoined
+    };
 
-    switch (aState)
-    {
-    case kStateIdle:
-        str = "Idle";
-        break;
-    case kStateDiscover:
-        str = "Discover";
-        break;
-    case kStateConnect:
-        str = "Connecting";
-        break;
-    case kStateConnected:
-        str = "Connected";
-        break;
-    case kStateEntrust:
-        str = "Entrust";
-        break;
-    case kStateJoined:
-        str = "Joined";
-        break;
-    }
+    static_assert(kStateIdle == 0, "kStateIdle value is incorrect");
+    static_assert(kStateDiscover == 1, "kStateDiscover value is incorrect");
+    static_assert(kStateConnect == 2, "kStateConnect value is incorrect");
+    static_assert(kStateConnected == 3, "kStateConnected value is incorrect");
+    static_assert(kStateEntrust == 4, "kStateEntrust value is incorrect");
+    static_assert(kStateJoined == 5, "kStateJoined value is incorrect");
 
-    return str;
+    return kStateStrings[aState];
 }
 
 #if OPENTHREAD_CONFIG_REFERENCE_DEVICE_ENABLE

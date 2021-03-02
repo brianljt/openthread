@@ -408,6 +408,16 @@
 #endif
 
 /**
+ * @def OPENTHREAD_CONFIG_MAC_SCAN_DURATION
+ *
+ * This setting configures the default scan duration in milliseconds.
+ *
+ */
+#ifndef OPENTHREAD_CONFIG_MAC_SCAN_DURATION
+#define OPENTHREAD_CONFIG_MAC_SCAN_DURATION 300
+#endif
+
+/*
  * @def OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
  *
  * SSED-to-SSED link feature option. This is not an official Thread 1.2 feature.

@@ -44,6 +44,7 @@
 #include "mac/channel_mask.hpp"
 #include "mac/data_poll_sender.hpp"
 #include "mac/mac.hpp"
+#include "mac/mac_frame.hpp"
 #include "net/ip6.hpp"
 #include "thread/address_resolver.hpp"
 #include "thread/indirect_sender.hpp"
@@ -327,7 +328,7 @@ private:
         kMeshHeaderFrameFcsSize = sizeof(uint16_t),        // Frame FCS size for Mesh Header frame.
     };
 
-    enum MessageAction ///< Defines the action parameter in `LogMessageInfo()` method.
+    enum MessageAction : uint8_t ///< Defines the action parameter in `LogMessageInfo()` method.
     {
         kMessageReceive,         ///< Indicates that the message was received.
         kMessageTransmit,        ///< Indicates that the message was sent.
@@ -455,6 +456,7 @@ private:
     void          UpdateNeighborLinkFailures(Neighbor &aNeighbor, otError aError, bool aAllowNeighborRemove);
     void          HandleSentFrame(Mac::TxFrame &aFrame, otError aError);
     void          UpdateSendMessage(otError aFrameTxError, Mac::Address &aMacDest, Neighbor *aNeighbor);
+    void          RemoveMessageIfNoPendingTx(Message &aMessage);
 
     void        HandleTimeTick(void);
     static void ScheduleTransmissionTask(Tasklet &aTasklet);
@@ -475,6 +477,12 @@ private:
                                     Message::Priority & aPriority);
 
     otError GetDestinationRlocByServiceAloc(uint16_t aServiceAloc, uint16_t &aMeshDest);
+
+    bool     CalcIePresent(const Message *aMessage);
+    uint16_t CalcFrameVersion(const Neighbor *aNeighbor, bool aIePresent);
+#if OPENTHREAD_CONFIG_MAC_HEADER_IE_SUPPORT
+    void AppendHeaderIe(const Message *aMessage, Mac::Frame &aFrame);
+#endif
 
     void PauseMessageTransmissions(void) { mTxPaused = true; }
     void ResumeMessageTransmissions(void);

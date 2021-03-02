@@ -44,6 +44,9 @@
 #include "thread/sed_to_sed.hpp"
 
 namespace ot {
+// This array contains critical keys that should be stored in the secure area.
+static const uint16_t kCriticalKeys[] = {SettingsBase::kKeyActiveDataset, SettingsBase::kKeyPendingDataset,
+                                         SettingsBase::kKeySrpEcdsaKey};
 
 // LCOV_EXCL_START
 
@@ -132,6 +135,11 @@ void SettingsDriver::Deinit(void)
     otPlatSettingsDeinit(&GetInstance());
 }
 
+void SettingsDriver::SetCriticalKeys(const uint16_t *aKeys, uint16_t aKeysLength)
+{
+    otPlatSettingsSetCriticalKeys(&GetInstance(), aKeys, aKeysLength);
+}
+
 otError SettingsDriver::Add(uint16_t aKey, const uint8_t *aValue, uint16_t aValueLength)
 {
     return otPlatSettingsAdd(&GetInstance(), aKey, aValue, aValueLength);
@@ -174,6 +182,12 @@ void SettingsDriver::Deinit(void)
 {
 }
 
+void SettingsDriver::SetCriticalKeys(const uint16_t *aKeys, uint16_t aKeysLength)
+{
+    OT_UNUSED_VARIABLE(aKeys);
+    OT_UNUSED_VARIABLE(aKeysLength);
+}
+
 otError SettingsDriver::Add(uint16_t aKey, const uint8_t *aValue, uint16_t aValueLength)
 {
     return mFlash.Add(aKey, aValue, aValueLength);
@@ -204,6 +218,7 @@ void SettingsDriver::Wipe(void)
 void Settings::Init(void)
 {
     Get<SettingsDriver>().Init();
+    Get<SettingsDriver>().SetCriticalKeys(kCriticalKeys, OT_ARRAY_LENGTH(kCriticalKeys));
 }
 
 void Settings::Deinit(void)
@@ -589,3 +604,13 @@ otError Settings::Delete(Key aKey)
 }
 
 } // namespace ot
+
+//---------------------------------------------------------------------------------------------------------------------
+// Default/weak implementation of settings platform APIs
+
+OT_TOOL_WEAK void otPlatSettingsSetCriticalKeys(otInstance *aInstance, const uint16_t *aKeys, uint16_t aKeysLength)
+{
+    OT_UNUSED_VARIABLE(aInstance);
+    OT_UNUSED_VARIABLE(aKeys);
+    OT_UNUSED_VARIABLE(aKeysLength);
+}
