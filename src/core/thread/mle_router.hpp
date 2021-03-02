@@ -570,20 +570,13 @@ private:
     otError AppendPendingDataset(Message &aMessage);
     void    HandleDetachStart(void);
     void    HandleChildStart(AttachMode aMode);
-    void    HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, Neighbor *aNeighbor);
-    void    HandleLinkAccept(const Message &         aMessage,
-                             const Ip6::MessageInfo &aMessageInfo,
-                             uint32_t                aKeySequence,
-                             Neighbor *              aNeighbor);
+    otError HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, Neighbor *aNeighbor);
     otError HandleLinkAccept(const Message &         aMessage,
                              const Ip6::MessageInfo &aMessageInfo,
                              uint32_t                aKeySequence,
                              Neighbor *              aNeighbor,
                              bool                    aRequest);
-    void    HandleLinkAcceptAndRequest(const Message &         aMessage,
-                                       const Ip6::MessageInfo &aMessageInfo,
-                                       uint32_t                aKeySequence,
-                                       Neighbor *              aNeighbor);
+    otError HandleDataRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
     otError HandleAdvertisement(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, Neighbor *);
     void    HandleParentRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
     void    HandleChildIdRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, uint32_t aKeySequence);
@@ -592,7 +585,6 @@ private:
                                    const Ip6::MessageInfo &aMessageInfo,
                                    uint32_t                aKeySequence,
                                    Neighbor *              aNeighbor);
-    void HandleDataRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, const Neighbor *aNeighbor);
     void HandleNetworkDataUpdateRouter(void);
     void HandleDiscoveryRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
 #if OPENTHREAD_CONFIG_TIME_SYNC_ENABLE

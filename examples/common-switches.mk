@@ -78,7 +78,6 @@ SETTINGS_RAM              ?= 0
 # SLAAC is enabled by default
 SLAAC                     ?= 1
 SNTP_CLIENT               ?= 0
-SSED_SSED_LINK            ?= 0
 SRP_CLIENT                ?= 0
 SRP_SERVER                ?= 0
 SSED_SSED_LINK            ?= 0
@@ -86,7 +85,6 @@ THREAD_VERSION            ?= 1.1
 TIME_SYNC                 ?= 0
 UDP_FORWARD               ?= 0
 RCP_RESTORATION_MAX_COUNT ?= 0
-S2S                       ?= 0
 
 
 ifeq ($(BACKBONE_ROUTER),1)
@@ -151,10 +149,6 @@ endif
 
 ifeq ($(CSL_RECEIVER),1)
 COMMONCFLAGS                   += -DOPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE=1
-endif
-
-ifeq ($(S2S),1)
-COMMONCFLAGS                   += -DOPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE=1
 endif
 
 ifeq ($(CSL_DEBUG),1)

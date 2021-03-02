@@ -559,7 +559,7 @@ exit:
     return error;
 }
 
-void MleRouter::HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, Neighbor *aNeighbor)
+otError MleRouter::HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, Neighbor *aNeighbor)
 {
     otError       error    = OT_ERROR_NONE;
     Neighbor *    neighbor = nullptr;
@@ -568,8 +568,6 @@ void MleRouter::HandleLinkRequest(const Message &aMessage, const Ip6::MessageInf
     LeaderData    leaderData;
     uint16_t      sourceAddress;
     RequestedTlvs requestedTlvs;
-
-    Log(kMessageReceive, kTypeLinkRequest, aMessageInfo.GetPeerAddr());
 
     VerifyOrExit(!IsAttaching(), error = OT_ERROR_INVALID_STATE);
 
@@ -663,7 +661,7 @@ void MleRouter::HandleLinkRequest(const Message &aMessage, const Ip6::MessageInf
     SuccessOrExit(error = SendLinkAccept(aMessageInfo, neighbor, requestedTlvs, challenge));
 
 exit:
-    LogProcessError(kTypeLinkRequest, error);
+    return error;
 }
 
 otError MleRouter::SendLinkAccept(const Ip6::MessageInfo &aMessageInfo,
@@ -755,26 +753,6 @@ exit:
     return error;
 }
 
-void MleRouter::HandleLinkAccept(const Message &         aMessage,
-                                 const Ip6::MessageInfo &aMessageInfo,
-                                 uint32_t                aKeySequence,
-                                 Neighbor *              aNeighbor)
-{
-    otError error = HandleLinkAccept(aMessage, aMessageInfo, aKeySequence, aNeighbor, false);
-
-    LogProcessError(kTypeLinkAccept, error);
-}
-
-void MleRouter::HandleLinkAcceptAndRequest(const Message &         aMessage,
-                                           const Ip6::MessageInfo &aMessageInfo,
-                                           uint32_t                aKeySequence,
-                                           Neighbor *              aNeighbor)
-{
-    otError error = HandleLinkAccept(aMessage, aMessageInfo, aKeySequence, aNeighbor, true);
-
-    LogProcessError(kTypeLinkAcceptAndRequest, error);
-}
-
 otError MleRouter::HandleLinkAccept(const Message &         aMessage,
                                     const Ip6::MessageInfo &aMessageInfo,
                                     uint32_t                aKeySequence,
@@ -803,8 +781,6 @@ otError MleRouter::HandleLinkAccept(const Message &         aMessage,
 
     Log(kMessageReceive, aRequest ? kTypeLinkAcceptAndRequest : kTypeLinkAccept, aMessageInfo.GetPeerAddr(),
         sourceAddress);
-
-    VerifyOrExit(IsActiveRouter(sourceAddress), error = OT_ERROR_PARSE);
 
     routerId      = RouterIdFromRloc16(sourceAddress);
     router        = mRouterTable.GetRouter(routerId);
@@ -2661,9 +2637,7 @@ exit:
     LogProcessError(kTypeChildUpdateResponseOfChild, error);
 }
 
-void MleRouter::HandleDataRequest(const Message &         aMessage,
-                                  const Ip6::MessageInfo &aMessageInfo,
-                                  const Neighbor *        aNeighbor)
+otError MleRouter::HandleDataRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo)
 {
     otError             error = OT_ERROR_NONE;
     RequestedTlvs       requestedTlvs;
@@ -2671,10 +2645,6 @@ void MleRouter::HandleDataRequest(const Message &         aMessage,
     PendingTimestampTlv pendingTimestamp;
     uint8_t             tlvs[4];
     uint8_t             numTlvs;
-
-    Log(kMessageReceive, kTypeDataRequest, aMessageInfo.GetPeerAddr());
-
-    VerifyOrExit(aNeighbor && aNeighbor->IsStateValid(), error = OT_ERROR_SECURITY);
 
     // TLV Request
     SuccessOrExit(error = FindTlvRequest(aMessage, requestedTlvs));
@@ -2713,7 +2683,7 @@ void MleRouter::HandleDataRequest(const Message &         aMessage,
     SendDataResponse(aMessageInfo.GetPeerAddr(), tlvs, numTlvs, 0, &aMessage);
 
 exit:
-    LogProcessError(kTypeDataRequest, error);
+    return error;
 }
 
 void MleRouter::HandleNetworkDataUpdateRouter(void)
