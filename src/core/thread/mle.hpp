@@ -1272,7 +1272,9 @@ protected:
      *
      */
     otError AppendCslTimeout(Message &aMessage);
+#endif // (OPENTHREAD_FTD && OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE) || OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
 
+#if OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
     /**
      * This method appends a CSL Accuracy TLV to a message.
      *
@@ -1283,7 +1285,7 @@ protected:
      *
      */
     otError AppendCslAccuracy(Message &aMessage);
-#endif // (OPENTHREAD_FTD && OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE) || OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
+#endif
 
     /**
      * This method appends a Active Timestamp TLV to a message.
@@ -1794,6 +1796,7 @@ private:
     otError SendLinkMetricsManagementResponse(const Ip6::Address &aDestination, LinkMetrics::LinkMetricsStatus aStatus);
 #endif
 #if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+    otError SendLinkRequest(Child *aChild);
     otError SendLinkAccept(const Ip6::MessageInfo &aMessageInfo,
                            Child *                 aChild,
                            const Challenge &       aChallenge,

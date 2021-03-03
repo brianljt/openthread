@@ -1454,12 +1454,14 @@ otError Mle::AppendCslTimeout(Message &aMessage)
     return Tlv::Append<CslTimeoutTlv>(aMessage, Get<Mac::Mac>().GetCslTimeout() == 0 ? mTimeout
                                                                                      : Get<Mac::Mac>().GetCslTimeout());
 }
+#endif // OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
 
+#if OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
 otError Mle::AppendCslAccuracy(Message &aMessage)
 {
     return Tlv::Append<CslAccuracyTlv>(aMessage, static_cast<uint8_t>(otPlatTimeGetXtalAccuracy()));
 }
-#endif // OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
+#endif
 
 void Mle::HandleNotifierEvents(Events aEvents)
 {
@@ -2510,6 +2512,42 @@ exit:
 #endif // OPENTHREAD_CONFIG_MLE_LINK_METRICS_ENABLE
 
 #if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+otError Mle::SendLinkRequest(Child *aChild)
+{
+    otError      error = OT_ERROR_NONE;
+    Message *    message;
+    Ip6::Address destination;
+
+    destination.Clear();
+
+    VerifyOrExit((message = NewMleMessage()) != nullptr, error = OT_ERROR_NO_BUFS);
+    SuccessOrExit(error = AppendHeader(*message, kCommandLinkRequest));
+    SuccessOrExit(error = AppendVersion(*message));
+    SuccessOrExit(error = AppendSourceAddress(*message));
+    SuccessOrExit(error = AppendMode(*message, mDeviceMode));
+    SuccessOrExit(error = AppendLinkFrameCounter(*message));
+    SuccessOrExit(error = AppendMleFrameCounter(*message));
+    SuccessOrExit(error = AppendCslChannel(*message));
+    SuccessOrExit(error = AppendCslTimeout(*message));
+    SuccessOrExit(error = AppendCslAccuracy(*message));
+    SuccessOrExit(error = AppendLeaderData(*message));
+    SuccessOrExit(error = AppendAddressRegistration(*message, kAppendAllAddresses));
+
+    aChild->GenerateChallenge();
+
+    SuccessOrExit(error = AppendChallenge(*message, aChild->GetChallenge(), aChild->GetChallengeSize()));
+
+    destination.SetToLinkLocalAddress(aChild->GetExtAddress());
+
+    SuccessOrExit(error = SendMessage(*message, destination));
+
+    Log(kMessageSend, kTypeLinkRequest, destination);
+
+exit:
+    FreeMessageOnError(message, error);
+    return error;
+}
+
 otError Mle::SendLinkAccept(const Ip6::MessageInfo &aMessageInfo,
                             Child *                 aChild,
                             const Challenge &       aChallenge,
@@ -3873,6 +3911,57 @@ exit:
     LogProcessError(kTypeAnnounce, error);
 }
 
+#if OPENTHREAD_CONFIG_MLE_LINK_METRICS_ENABLE
+void Mle::HandleLinkMetricsManagementRequest(const Message &         aMessage,
+                                             const Ip6::MessageInfo &aMessageInfo,
+                                             Neighbor *              aNeighbor)
+{
+    otError                        error = OT_ERROR_NONE;
+    LinkMetrics::LinkMetricsStatus status;
+
+    Log(kMessageReceive, kTypeLinkMetricsManagementRequest, aMessageInfo.GetPeerAddr());
+
+    VerifyOrExit(aNeighbor != nullptr, error = OT_ERROR_INVALID_STATE);
+
+    SuccessOrExit(error = Get<LinkMetrics>().HandleLinkMetricsManagementRequest(aMessage, *aNeighbor, status));
+    error = SendLinkMetricsManagementResponse(aMessageInfo.GetPeerAddr(), status);
+
+exit:
+    LogProcessError(kTypeLinkMetricsManagementRequest, error);
+}
+
+void Mle::HandleLinkMetricsManagementResponse(const Message &         aMessage,
+                                              const Ip6::MessageInfo &aMessageInfo,
+                                              Neighbor *              aNeighbor)
+{
+    otError error = OT_ERROR_NONE;
+
+    Log(kMessageReceive, kTypeLinkMetricsManagementResponse, aMessageInfo.GetPeerAddr());
+
+    VerifyOrExit(aNeighbor != nullptr, error = OT_ERROR_INVALID_STATE);
+
+    error = Get<LinkMetrics>().HandleLinkMetricsManagementResponse(aMessage, aMessageInfo.GetPeerAddr());
+
+exit:
+    LogProcessError(kTypeLinkMetricsManagementResponse, error);
+}
+
+void Mle::HandleLinkProbe(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, Neighbor *aNeighbor)
+{
+    otError error = OT_ERROR_NONE;
+    uint8_t seriesId;
+
+    Log(kMessageReceive, kTypeLinkProbe, aMessageInfo.GetPeerAddr());
+
+    SuccessOrExit(error = Get<LinkMetrics>().HandleLinkProbe(aMessage, seriesId));
+    aNeighbor->AggregateLinkMetrics(seriesId, LinkMetricsSeriesInfo::kSeriesTypeLinkProbe, aMessage.GetAverageLqi(),
+                                    aMessage.GetAverageRss());
+
+exit:
+    LogProcessError(kTypeLinkProbe, error);
+}
+#endif // OPENTHREAD_CONFIG_MLE_LINK_METRICS_ENABLE
+
 void Mle::HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, Neighbor *aNeighbor)
 {
     otError error = OT_ERROR_NONE;
@@ -4166,60 +4255,7 @@ exit:
     FreeMessageOnError(message, error);
     return error;
 }
-#endif // OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
 
-#if OPENTHREAD_CONFIG_MLE_LINK_METRICS_ENABLE
-void Mle::HandleLinkMetricsManagementRequest(const Message &         aMessage,
-                                             const Ip6::MessageInfo &aMessageInfo,
-                                             Neighbor *              aNeighbor)
-{
-    otError                        error = OT_ERROR_NONE;
-    LinkMetrics::LinkMetricsStatus status;
-
-    Log(kMessageReceive, kTypeLinkMetricsManagementRequest, aMessageInfo.GetPeerAddr());
-
-    VerifyOrExit(aNeighbor != nullptr, error = OT_ERROR_INVALID_STATE);
-
-    SuccessOrExit(error = Get<LinkMetrics>().HandleLinkMetricsManagementRequest(aMessage, *aNeighbor, status));
-    error = SendLinkMetricsManagementResponse(aMessageInfo.GetPeerAddr(), status);
-
-exit:
-    LogProcessError(kTypeLinkMetricsManagementRequest, error);
-}
-
-void Mle::HandleLinkMetricsManagementResponse(const Message &         aMessage,
-                                              const Ip6::MessageInfo &aMessageInfo,
-                                              Neighbor *              aNeighbor)
-{
-    otError error = OT_ERROR_NONE;
-
-    Log(kMessageReceive, kTypeLinkMetricsManagementResponse, aMessageInfo.GetPeerAddr());
-
-    VerifyOrExit(aNeighbor != nullptr, error = OT_ERROR_INVALID_STATE);
-
-    error = Get<LinkMetrics>().HandleLinkMetricsManagementResponse(aMessage, aMessageInfo.GetPeerAddr());
-
-exit:
-    LogProcessError(kTypeLinkMetricsManagementResponse, error);
-}
-
-void Mle::HandleLinkProbe(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, Neighbor *aNeighbor)
-{
-    otError error = OT_ERROR_NONE;
-    uint8_t seriesId;
-
-    Log(kMessageReceive, kTypeLinkProbe, aMessageInfo.GetPeerAddr());
-
-    SuccessOrExit(error = Get<LinkMetrics>().HandleLinkProbe(aMessage, seriesId));
-    aNeighbor->AggregateLinkMetrics(seriesId, LinkMetricsSeriesInfo::kSeriesTypeLinkProbe, aMessage.GetAverageLqi(),
-                                    aMessage.GetAverageRss());
-
-exit:
-    LogProcessError(kTypeLinkProbe, error);
-}
-#endif // OPENTHREAD_CONFIG_MLE_LINK_METRICS_ENABLE
-
-#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
 void Mle::HandleSsedBeacon(const Mac::RxFrame &aFrame)
 {
     otError           error    = OT_ERROR_NONE;
@@ -4272,12 +4308,12 @@ void Mle::HandleSsedBeacon(const Mac::RxFrame &aFrame)
     peerSsed->SetCslPeriod(csl->GetPeriod());
     peerSsed->SetCslPhase(csl->GetPhase());
 
-    // TODO: Send Link Request
+    SuccessOrExit(error = SendLinkRequest(peerSsed));
 
 exit:
     return;
 }
-#endif
+#endif // OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
 
 void Mle::ProcessAnnounce(void)
 {

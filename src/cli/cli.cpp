@@ -1344,7 +1344,7 @@ otError Interpreter::ProcessSsedToSsedMode(uint8_t aArgsLength, char *aArgs[])
         uint8_t modeIdx = count;
         for (uint8_t i = 0; i < count; i++)
         {
-            if (strcmp(sModeInfo[i].mString, aArgs[0]) == 0)
+            if (strcasecmp(sModeInfo[i].mString, aArgs[0]) == 0)
             {
                 modeIdx = i;
                 break;
