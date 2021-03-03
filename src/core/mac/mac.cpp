@@ -80,7 +80,7 @@ Mac::Mac(Instance &aInstance)
     , mPendingEnergyScan(false)
     , mPendingTransmitBeacon(false)
     , mPendingTransmitDataDirect(false)
-#if OPENTHREAD_FTD
+#if OPENTHREAD_FTD || OPENTHREAD_MTD_S2S
     , mPendingTransmitDataIndirect(false)
 #if OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
     , mPendingTransmitDataCsl(false)
@@ -98,6 +98,9 @@ Mac::Mac(Instance &aInstance)
     , mShouldDelaySleep(false)
     , mDelayingSleep(false)
 #endif
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+    , mSsedToSsedMode(kNone)
+#endif
     , mOperation(kOperationIdle)
     , mBeaconSequence(Random::NonCrypto::GetUint8())
     , mDataSequence(Random::NonCrypto::GetUint8())
@@ -109,10 +112,13 @@ Mac::Mac(Instance &aInstance)
     , mScanChannel(Radio::kChannelMin)
     , mScanDuration(0)
     , mMaxFrameRetriesDirect(kDefaultMaxFrameRetriesDirect)
-#if OPENTHREAD_FTD
+#if OPENTHREAD_FTD || OPENTHREAD_MTD_S2S
     , mMaxFrameRetriesIndirect(kDefaultMaxFrameRetriesIndirect)
 #if OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
     , mCslTxFireTime(TimeMilli::kMaxDuration)
+#endif
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+    , mSsedBeaconPeriod(0)
 #endif
 #endif
     , mActiveScanHandler(nullptr) // Initialize `mActiveScanHandler` and `mEnergyScanHandler` union
@@ -125,6 +131,9 @@ Mac::Mac(Instance &aInstance)
     , mCcaSampleCount(0)
 #if OPENTHREAD_CONFIG_MULTI_RADIO
     , mTxError(OT_ERROR_NONE)
+#endif
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+    , mSsedToSsedTimer(aInstance, Mac::HandleSsedToSsedTimer)
 #endif
 {
     ExtAddress randomExtAddress;
@@ -668,7 +677,7 @@ void Mac::UpdateIdleMode(void)
     if (shouldSleep)
     {
 #if OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
-        if (IsCslEnabled())
+        if (IsCslEnabledInRadio())
         {
             mLinks.CslSample(mRadioChannel);
             ExitNow();
@@ -1737,6 +1746,29 @@ void Mac::HandleTimer(void)
     }
 }
 
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+void Mac::HandleSsedToSsedTimer(Timer &aTimer)
+{
+    aTimer.Get<Mac>().HandleSsedToSsedTimer();
+}
+
+void Mac::HandleSsedToSsedTimer(void)
+{
+    /**
+     * #Note:
+     * Not sure if any other TLVs would be added into the SSED Beacon. That's why here we use `MeshForwarder` to send
+     * the Beacon. We can enhance it later by directly prepare the frame in Mac layer if there's no other TLVs in the
+     * message.
+     */
+    Get<MeshForwarder>().SendSsedBeacon();
+
+    if (mSsedBeaconPeriod > 0)
+    {
+        mSsedToSsedTimer.Start(mSsedBeaconPeriod);
+    }
+}
+#endif
+
 otError Mac::ProcessReceiveSecurity(RxFrame &aFrame, const Address &aSrcAddr, Neighbor *aNeighbor)
 {
     KeyManager &      keyManager = Get<KeyManager>();
@@ -1999,8 +2031,15 @@ void Mac::HandleReceivedFrame(RxFrame *aFrame, otError aError)
         break;
 
     case Address::kTypeShort:
-        VerifyOrExit((mRxOnWhenIdle && dstaddr.IsBroadcast()) || dstaddr.GetShort() == GetShortAddress(),
+    {
+        bool broadcastAddrCond = dstaddr.IsBroadcast()
+#if !OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+                                 && mRxOnWhenIdle
+#endif
+            ;
+        VerifyOrExit(broadcastAddrCond || dstaddr.GetShort() == GetShortAddress(),
                      error = OT_ERROR_DESTINATION_ADDRESS_FILTERED);
+    }
 
 #if OPENTHREAD_FTD
         // Allow multicasts from neighbor routers if FTD
@@ -2510,7 +2549,7 @@ void Mac::SetCslChannel(uint8_t aChannel)
     mLinks.GetSubMac().SetCslChannel(aChannel);
     mLinks.GetSubMac().SetCslChannelSpecified(aChannel != 0);
 
-    if (IsCslEnabled())
+    if (IsAttachedCslReceiver())
     {
         Get<Mle::Mle>().ScheduleChildUpdateRequest();
     }
@@ -2522,13 +2561,12 @@ void Mac::SetCslPeriod(uint16_t aPeriod)
 {
     mLinks.GetSubMac().SetCslPeriod(aPeriod);
 
-    if (IsCslEnabled())
+    if (IsAttachedCslReceiver())
     {
-        IgnoreError(Get<Radio>().EnableCsl(GetCslPeriod(), &Get<Mle::Mle>().GetParent().GetExtAddress()));
+        ActivateCslRadio(&Get<Mle::Mle>().GetParent().GetExtAddress());
         Get<Mle::Mle>().ScheduleChildUpdateRequest();
+        UpdateIdleMode();
     }
-
-    UpdateIdleMode();
 }
 
 void Mac::SetCslTimeout(uint32_t aTimeout)
@@ -2537,7 +2575,7 @@ void Mac::SetCslTimeout(uint32_t aTimeout)
 
     mLinks.GetSubMac().SetCslTimeout(aTimeout);
 
-    if (IsCslEnabled())
+    if (IsAttachedCslReceiver())
     {
         Get<Mle::Mle>().ScheduleChildUpdateRequest();
     }
@@ -2546,12 +2584,26 @@ exit:
     return;
 }
 
-bool Mac::IsCslEnabled(void) const
+bool Mac::IsCslReceiverEnabled(void) const
 {
-    return (GetCslPeriod() > 0) && !GetRxOnWhenIdle() && Get<Mle::MleRouter>().IsChild() &&
+    return (GetCslPeriod() > 0) && !GetRxOnWhenIdle();
+}
+
+bool Mac::IsAttachedCslReceiver(void) const
+{
+    return IsCslReceiverEnabled() && Get<Mle::MleRouter>().IsChild() &&
            Get<Mle::Mle>().GetParent().IsEnhancedKeepAliveSupported();
 }
 
+void Mac::ActivateCslRadio(const ExtAddress *aExtAddr)
+{
+    IgnoreError(Get<Radio>().EnableCsl(GetCslPeriod(), aExtAddr));
+}
+
+bool Mac::IsCslEnabledInRadio(void) const
+{
+    return Get<Radio>().IsCslEnabled();
+}
 #endif // OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
 
 #if OPENTHREAD_FTD && OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
@@ -2606,6 +2658,62 @@ exit:
     return;
 }
 #endif // OPENTHREAD_CONFIG_MLE_LINK_METRICS_ENABLE
+
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+Mac::SsedToSsedMode Mac::GetSsedToSsedMode(void)
+{
+    return static_cast<SsedToSsedMode>(mSsedToSsedMode);
+}
+
+otError Mac::SetSsedToSsedMode(SsedToSsedMode aMode)
+{
+    otError error = OT_ERROR_NONE;
+
+    VerifyOrExit((aMode == kNone) || IsCslReceiverEnabled(), error = OT_ERROR_INVALID_STATE);
+
+    mSsedToSsedMode = aMode;
+
+    switch (mSsedToSsedMode)
+    {
+    case kCenter:
+        ActivateCslRadio();
+        SetSsedBeaconPeriod(kDefaultSsedBeaconPeriod);
+        break;
+    case kEnd:
+        ActivateCslRadio();
+        SetRxOnWhenIdle(true); ///< Turn on radio for SSED End to receive the Beacon.
+        break;
+    case kNone:
+        // TODO: De-activate CSL in radio, handle the case where both normal CSL and S2S are involved.
+        break;
+    }
+
+exit:
+    return error;
+}
+
+uint16_t Mac::GetSsedBeaconPeriod(void)
+{
+    return mSsedBeaconPeriod / 1000;
+}
+
+otError Mac::SetSsedBeaconPeriod(uint16_t aPeriod)
+{
+    otError error = OT_ERROR_NONE;
+
+    VerifyOrExit(mSsedToSsedMode == kCenter, error = OT_ERROR_INVALID_STATE);
+
+    mSsedBeaconPeriod = aPeriod * 1000;
+    mSsedToSsedTimer.Stop();
+    if (mSsedBeaconPeriod > 0)
+    {
+        mSsedToSsedTimer.Start(mSsedBeaconPeriod);
+    }
+
+exit:
+    return error;
+}
+#endif
 
 } // namespace Mac
 } // namespace ot

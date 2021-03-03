@@ -109,6 +109,10 @@ namespace Cli {
 
 constexpr Interpreter::Command Interpreter::sCommands[];
 
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+constexpr Interpreter::SsedToSsedModeInfo Interpreter::sModeInfo[];
+#endif
+
 Interpreter *Interpreter::sInterpreter = nullptr;
 
 Interpreter::Interpreter(Instance *aInstance)
@@ -1250,9 +1254,13 @@ otError Interpreter::ProcessCsl(uint8_t aArgsLength, char *aArgs[])
         OutputLine("Period: %u(in units of 10 symbols), %ums", otLinkCslGetPeriod(mInstance),
                    otLinkCslGetPeriod(mInstance) * kUsPerTenSymbols / 1000);
         OutputLine("Timeout: %us", otLinkCslGetTimeout(mInstance));
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+        OutputLine("SSED Mode: %s", GetSsedToSsedModeInfo());
+        OutputLine("SSED-to-SSED Beacon period: %u", otLinkGetSsedBeaconPeriod(mInstance));
+#endif
         error = OT_ERROR_NONE;
     }
-    else if (aArgsLength == 2)
+    else if (aArgsLength >= 2)
     {
         if (strcmp(aArgs[0], "channel") == 0)
         {
@@ -1275,11 +1283,97 @@ otError Interpreter::ProcessCsl(uint8_t aArgsLength, char *aArgs[])
             SuccessOrExit(error = ParseAsUint32(aArgs[1], timeout));
             SuccessOrExit(error = otLinkCslSetTimeout(mInstance, timeout));
         }
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+        else if (strcmp(aArgs[0], "s2s") == 0)
+        {
+            if (strcmp(aArgs[1], "mode") == 0)
+            {
+                SuccessOrExit(error = ProcessSsedToSsedMode(aArgsLength - 2, aArgs + 2));
+            }
+
+            if (strcmp(aArgs[1], "beacon-period") == 0)
+            {
+                SuccessOrExit(error = ProcessSsedBeaconPeriod(aArgsLength - 2, aArgs + 2));
+            }
+        }
+#endif
     }
 
 exit:
     return error;
 }
+
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+struct SsedToSsedModeInfo
+{
+    otMacSsedToSsedMode mId;
+    const char *        mString;
+};
+
+const char *Interpreter::GetSsedToSsedModeInfo(void)
+{
+    const char *modeStr = nullptr;
+
+    uint8_t             count = sizeof(sModeInfo) / sizeof(SsedToSsedModeInfo);
+    otMacSsedToSsedMode mode  = otLinkGetSsedToSsedMode(mInstance);
+
+    for (uint8_t i = 0; i < count; i++)
+    {
+        if (sModeInfo[i].mId == mode)
+        {
+            modeStr = sModeInfo[i].mString;
+            break;
+        }
+    }
+
+    if (modeStr == nullptr)
+    {
+        modeStr = "Invalid!";
+    }
+
+    return modeStr;
+}
+
+otError Interpreter::ProcessSsedToSsedMode(uint8_t aArgsLength, char *aArgs[])
+{
+    otError error = OT_ERROR_INVALID_ARGS;
+
+    if (aArgsLength == 1)
+    {
+        uint8_t count   = sizeof(sModeInfo) / sizeof(SsedToSsedModeInfo);
+        uint8_t modeIdx = count;
+        for (uint8_t i = 0; i < count; i++)
+        {
+            if (strcmp(sModeInfo[i].mString, aArgs[0]) == 0)
+            {
+                modeIdx = i;
+                break;
+            }
+        }
+
+        VerifyOrExit(modeIdx != count);
+        SuccessOrExit(error = otLinkSetSsedToSsedMode(mInstance, sModeInfo[modeIdx].mId));
+    }
+
+exit:
+    return error;
+}
+
+otError Interpreter::ProcessSsedBeaconPeriod(uint8_t aArgsLength, char *aArgs[])
+{
+    otError error = OT_ERROR_INVALID_ARGS;
+
+    if (aArgsLength == 1)
+    {
+        uint16_t period;
+        SuccessOrExit(error = ParseAsUint16(aArgs[0], period));
+        error = otLinkSetSsedBeaconPeriod(mInstance, period);
+    }
+
+exit:
+    return error;
+}
+#endif
 #endif // OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
 
 #if OPENTHREAD_FTD

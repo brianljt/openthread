@@ -131,6 +131,15 @@ class Mac : public InstanceLocator, private NonCopyable
     friend class ot::Instance;
 
 public:
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+    enum SsedToSsedMode : uint8_t
+    {
+        kNone   = OT_MAC_SSED_TO_SSED_MODE_NONE,
+        kCenter = OT_MAC_SSED_TO_SSED_MODE_CENTER,
+        kEnd    = OT_MAC_SSED_TO_SSED_MODE_END,
+    };
+#endif
+
     /**
      * This constructor initializes the MAC object.
      *
@@ -740,12 +749,91 @@ public:
     /**
      * This method indicates whether CSL is started at the moment.
      *
-     * @retval TURE if CSL is actually running at the moment, FALSE otherwise.
+     * @retval TRUE if CSL is actually running at the moment, FALSE otherwise.
      *
      */
-    bool IsCslEnabled(void) const;
+    bool IsCslReceiverEnabled(void) const;
+
+    /**
+     * This method indicates whether CSL Receiver is enabled and the device has become an SSED Child.
+     *
+     * @retval TRUE if CSL Receiver is enabled and the device has become an SSED Child, FALSE otherwise.
+     *
+     */
+    bool IsAttachedCslReceiver(void) const;
+
+    /**
+     * This method activates CSL in radio based on CSL parameter.
+     *
+     * @param[in]  aExtAddr  The extended source address of CSL receiver's parent device. @p aExtAddr could be
+     *                       `nullptr`. When it is set to `nullptr`, the device is trying to establish `SSED-to-SSED`
+     *                       link and isn't like a normal SSED that has a parent.
+     *
+     */
+    void ActivateCslRadio(const ExtAddress *aExtAddr = nullptr);
+
+    /**
+     * This method indicats whether CSL is enabled in radio layer (i.e. if CSL IE would be included in frames sent).
+     *
+     * @retval TRUE if CSL is enabled in radio. FALSE otherwise.
+     *
+     */
+    bool IsCslEnabledInRadio(void) const;
 
 #endif // OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
+
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+    /**
+     * This method gets the SSED-to-SSED mode.
+     *
+     * @retval  kCenter  The device is in SSED-to-SSED Center mode.
+     * @retval  kEnd     The device is in SSED-to-SSED End mode.
+     * @retval  kNone    The device is not in SSED-to-SSED mode.
+     *
+     */
+    SsedToSsedMode GetSsedToSsedMode(void);
+
+    /**
+     * This method sets the SSED-to-SSED mode.
+     *
+     * This method can only be used for a Rx-off-when-Idle device with CSL parameters set.
+     * - CENTER mode: the device would send Beacon (which contains its CSL parameters) periodically so that other end
+     *   devices could connect to it.
+     * - End mode: the device would listen for the Beacon periodically. Once it receives a Beacon, it tries to establish
+     *   a SSED-to-SSED connection with a center device. It starts CSL and stop listening to Beacon after the connection
+     *   is established.
+     * - None mode: Default mode. The device won't have SSED-to-SSED behavior.
+     * Note: available only when `OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE`.
+     *
+     * @param[in] aMode      The SSED-to-SSED Mode.
+     *
+     * @retval OT_ERROR_NONE           Successfully set the mode.
+     * @retval OT_ERROR_INVALID_STATE  The device is not in Rx-off-when-Idle mode or CSL is not enabled.
+     *
+     */
+    otError SetSsedToSsedMode(SsedToSsedMode aMode);
+
+    /**
+     * This function gets the SSED-to-SSED Beacon period.
+     *
+     * @returns The Ssed Beacon period.
+     *
+     */
+    uint16_t GetSsedBeaconPeriod(void);
+
+    /**
+     * This function sets the SSED-to-SSED Beacon period.
+     *
+     * This method can only be successfully called when the device is in SSED-to-SSED CENTER mode. When set a Beacon
+     * period @p aSec, the device in CENTER mode would send a Beacon message every @p aSec (seconds). After a device
+     * is set to CENTER mode, the period would be set to a default value. In other cases, the period would be `0`.
+     *
+     * @retval OT_ERROR_NONE            Successfully set the Beacon period.
+     * @retval OT_ERROR_INVALID_STATE  The device is not in SSED-to-SSED center mode.
+     *
+     */
+    otError SetSsedBeaconPeriod(uint16_t aPeriod);
+#endif
 
 private:
     enum
@@ -753,6 +841,9 @@ private:
         kInvalidRssiValue  = SubMac::kInvalidRssiValue,
         kMaxCcaSampleCount = OPENTHREAD_CONFIG_CCA_FAILURE_RATE_AVERAGING_WINDOW,
         kMaxAcquisitionId  = 0xffff,
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+        kDefaultSsedBeaconPeriod = 5, ///< in unit of seconds
+#endif
     };
 
     enum Operation : uint8_t
@@ -818,6 +909,11 @@ private:
     void        HandleTimer(void);
     static void HandleOperationTask(Tasklet &aTasklet);
 
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+    static void HandleSsedToSsedTimer(Timer &aTimer);
+    void        HandleSsedToSsedTimer(void);
+#endif
+
     void    Scan(Operation aScanOperation, uint32_t aScanChannels, uint16_t aScanDuration);
     otError UpdateScanChannel(void);
     void    PerformActiveScan(void);
@@ -871,6 +967,9 @@ private:
     bool mShouldDelaySleep : 1;
     bool mDelayingSleep : 1;
 #endif
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+    uint8_t mSsedToSsedMode : 2;
+#endif
 
     Operation     mOperation;
     uint8_t       mBeaconSequence;
@@ -894,6 +993,9 @@ private:
 #if OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
     TimeMilli mCslTxFireTime;
 #endif
+#endif
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+    uint32_t mSsedBeaconPeriod; ///< In unit of milliseconds for timer usage.
 #endif
 
     union
@@ -924,6 +1026,10 @@ private:
 #if OPENTHREAD_CONFIG_MAC_FILTER_ENABLE
     Filter mFilter;
 #endif // OPENTHREAD_CONFIG_MAC_FILTER_ENABLE
+
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+    TimerMilli mSsedToSsedTimer;
+#endif
 };
 
 /**

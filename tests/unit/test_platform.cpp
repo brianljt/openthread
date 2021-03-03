@@ -619,6 +619,13 @@ void otPlatRadioUpdateCslSampleTime(otInstance *aInstance, uint32_t aCslSampleTi
     OT_UNUSED_VARIABLE(aInstance);
     OT_UNUSED_VARIABLE(aCslSampleTime);
 }
+
+bool otPlatRadioIsCslEnabled(otInstance *aInstance)
+{
+    OT_UNUSED_VARIABLE(aInstance);
+
+    return false;
+}
 #endif // OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
 
 #if OPENTHREAD_CONFIG_OTNS_ENABLE

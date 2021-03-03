@@ -201,6 +201,10 @@ public:
     otError SendEmptyMessage(void);
 #endif
 
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+    otError SendSsedBeacon(void);
+#endif
+
     /**
      * This method is called by the address resolver when an EID-to-RLOC mapping has been resolved.
      *
@@ -326,6 +330,8 @@ private:
         kReassemblyTimeout      = OPENTHREAD_CONFIG_6LOWPAN_REASSEMBLY_TIMEOUT, // Reassembly timeout (in seconds).
         kMeshHeaderFrameMtu     = OT_RADIO_FRAME_MAX_SIZE, // Max. MTU allowed when generating a Mesh Header frame.
         kMeshHeaderFrameFcsSize = sizeof(uint16_t),        // Frame FCS size for Mesh Header frame.
+        kMaxNumHeaderIe         = 3,                       // TimeSync + CSL + Termination2
+        kHeaderIeExtBufSize     = 16, // Size of the buf to store extra information when appending Header IE.
     };
 
     enum MessageAction : uint8_t ///< Defines the action parameter in `LogMessageInfo()` method.
@@ -433,7 +439,7 @@ private:
                               uint16_t            aMeshSource    = 0xffff,
                               uint16_t            aMeshDest      = 0xffff,
                               bool                aAddFragHeader = false);
-    void     PrepareEmptyFrame(Mac::TxFrame &aFrame, const Mac::Address &aMacDest, bool aAckRequest);
+    void PrepareEmptyFrame(Mac::TxFrame &aFrame, const Mac::Address &aMacDest, bool aAckRequest, bool aSecurity = true);
 
     void    SendMesh(Message &aMessage, Mac::TxFrame &aFrame);
     void    SendDestinationUnreachable(uint16_t aMeshSource, const Message &aMessage);
@@ -564,6 +570,10 @@ private:
     bool         mEnabled : 1;
     bool         mTxPaused : 1;
     bool         mSendBusy : 1;
+
+#if OPENTHREAD_CONFIG_MAC_HEADER_IE_SUPPORT
+    uint8_t mHeaderIeExtBuf[kHeaderIeExtBufSize];
+#endif
 
     Tasklet mScheduleTransmissionTask;
 

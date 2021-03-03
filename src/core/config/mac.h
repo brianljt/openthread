@@ -420,7 +420,11 @@
 /*
  * @def OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
  *
- * SSED-to-SSED link feature option. This is not an official Thread 1.2 feature.
+ * SED-to-SED option.
+ *
+ * This is an experimental feature. This feature enables an SED to do CSL transmission (as CSL Transmitter) and
+ * csl reception, thus enabling SED to SED communication. When an SED is connected to another SED, they are
+ * detached and not in any Thread network.
  *
  */
 #ifndef OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE

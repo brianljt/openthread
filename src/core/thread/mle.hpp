@@ -713,6 +713,16 @@ public:
      */
     bool HasRestored(void) const { return mHasRestored; }
 
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+    /**
+     * This method handles SSED Beacon received.
+     *
+     * @param[in]  aFrame  A reference to the Beacon frame received.
+     *
+     */
+    void HandleSsedBeacon(const Mac::RxFrame &aFrame);
+#endif
+
 protected:
     /**
      * MLE Command Types.
@@ -1594,6 +1604,12 @@ private:
         kAttachBackoffMaxInterval         = OPENTHREAD_CONFIG_MLE_ATTACH_BACKOFF_MAXIMUM_INTERVAL,
         kAttachBackoffJitter              = OPENTHREAD_CONFIG_MLE_ATTACH_BACKOFF_JITTER_INTERVAL,
         kAttachBackoffDelayToResetCounter = OPENTHREAD_CONFIG_MLE_ATTACH_BACKOFF_DELAY_TO_RESET_BACKOFF_INTERVAL,
+
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+        kAttachCountBeforeSsedToSsed = 2, ///< Attach attempt count before trying to establish SSED-to-SSED connection.
+
+        kSsedToSsedBeaconInterval = 5000, ///< Interval time to send SSED center beacon, in unit of milliseconds.
+#endif
     };
 
     enum ParentRequestType
