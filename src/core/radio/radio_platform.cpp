@@ -282,3 +282,10 @@ OT_TOOL_WEAK otError otPlatRadioGetRegion(otInstance *aInstance, uint16_t *aRegi
 
     return OT_ERROR_NOT_IMPLEMENTED;
 }
+
+OT_TOOL_WEAK bool otPlatRadioIsCslEnabled(otInstance *aInstance)
+{
+    OT_UNUSED_VARIABLE(aInstance);
+
+    return false;
+}

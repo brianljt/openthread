@@ -96,6 +96,17 @@ typedef enum otMacFilterAddressMode
 } otMacFilterAddressMode;
 
 /**
+ * Defines SSED-to-SSED mode.
+ *
+ */
+typedef enum otMacSsedToSsedMode
+{
+    OT_MAC_SSED_TO_SSED_MODE_NONE,   ///< Default mode. Won't have SSED-to-SSED behavior.
+    OT_MAC_SSED_TO_SSED_MODE_CENTER, ///< SSED-to-SSED center mode.
+    OT_MAC_SSED_TO_SSED_MODE_END,    ///< SSED-to-SSED end mode.
+} otMacSsedToSsedMode;
+
+/**
  * This structure represents a Mac Filter entry.
  *
  */
@@ -1126,6 +1137,59 @@ bool otLinkIsEnabled(otInstance *aInstance);
  *
  */
 otError otLinkSendEmptyData(otInstance *aInstance);
+
+/**
+ * This method gets the SSED-to-SSED mode.
+ *
+ * @retval  OT_MAC_SSED_TO_SSED_MODE_CENTER  The device is in SSED-to-SSED Center mode.
+ * @retval  OT_MAC_SSED_TO_SSED_MODE_END     The device is in SSED-to-SSED End mode.
+ * @retval  OT_MAC_SSED_TO_SSED_MODE_NONE    The device is not in SSED-to-SSED mode.
+ *
+ */
+otMacSsedToSsedMode otLinkGetSsedToSsedMode(otInstance *aInstance);
+
+/**
+ * This function sets the SSED-to-SSED mode.
+ *
+ * This method can only be used for a Rx-off-when-Idle device with CSL parameters set.
+ * - CENTER mode: the device would send Beacon (which contains its CSL parameters) periodically so that other end
+ *   devices could connect to it.
+ * - End mode: the device would listen for the Beacon periodically. Once it receives a Beacon, it tries to establish
+ *   a SSED-to-SSED connection with a center device. It starts CSL and stop listening to Beacon after the connection
+ *   is established.
+ * - None mode: Default mode. The device won't have SSED-to-SSED behavior.
+ * Note: available only when `OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE`.
+ *
+ * @param[in] aInstance  A pointer to an OpenThread instance.
+ * @param[in] aMode      The SSED-to-SSED Mode.
+ *
+ * @retval OT_ERROR_NONE           Successfully set the mode.
+ * @retval OT_ERROR_INVALID_STATE  The device is not in Rx-off-when-Idle mode or CSL is not enabled.
+ *
+ */
+otError otLinkSetSsedToSsedMode(otInstance *aInstance, otMacSsedToSsedMode aMode);
+
+/**
+ * This function gets the SSED-to-SSED Beacon period (in unit of seconds).
+ *
+ * @returns The Ssed Beacon period.
+ *
+ */
+uint16_t otLinkGetSsedBeaconPeriod(otInstance *aInstance);
+
+/**
+ * This function sets the SSED-to-SSED Beacon period (in unit of seconds).
+ *
+ * This method can only be successfully called when the device is in SSED-to-SSED CENTER mode. When set a Beacon
+ * period @p aPeriod, the device in CENTER mode would send a Beacon message every @p aPeriod (seconds). After a
+ * device is set to CENTER mode, the period would be set to a default value. In other cases, the period would be `0`.
+ * If @p aPeriod is `0`, the device won't send Beacon messages. It can be set to `0` in CENTER mode.
+ *
+ * @retval OT_ERROR_NONE            Successfully set the Beacon period.
+ * @retval OT_ERROR_INVALID_STATE  The device is not in SSED-to-SSED center mode.
+ *
+ */
+otError otLinkSetSsedBeaconPeriod(otInstance *aInstance, uint16_t aPeriod);
 
 /**
  * @}

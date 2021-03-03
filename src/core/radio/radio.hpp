@@ -413,11 +413,15 @@ public:
      */
     void UpdateCslSampleTime(uint32_t aCslSampleTime);
 
-    /** This method enables CSL sampling in radio.
+    /**
+     * This method enables CSL sampling in radio.
      *
      * @param[in]  aCslPeriod    CSL period, 0 for disabling CSL.
      * @param[in]  aExtAddr      The extended source address of CSL receiver's parent device (when the platforms
-     * generate enhanced ack, platforms may need to know acks to which address should include CSL IE).
+     *                           generate enhanced ack, platforms may need to know acks to which address should
+     *                           include CSL IE). @p aExtAddr could be `nullptr`. When it is set to `nullptr`, the
+     *                           device is trying to establish `SSED-to-SSED` link and isn't like a normal SSED that
+     *                           has a parent.
      *
      * @retval  OT_ERROR_NOT_SUPPORTED  Radio driver doesn't support CSL.
      * @retval  OT_ERROR_FAILED         Other platform specific errors.
@@ -425,6 +429,14 @@ public:
      *
      */
     otError EnableCsl(uint32_t aCslPeriod, const otExtAddress *aExtAddr);
+
+    /**
+     * This method indicates if CSL is enabled in radio.
+     *
+     * @retval TRUE if CSL is enabled in radio, FALSE otherwise.
+     *
+     */
+    bool IsCslEnabled(void);
 #endif // OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
 
     /**
@@ -734,6 +746,11 @@ inline void Radio::UpdateCslSampleTime(uint32_t aCslSampleTime)
 inline otError Radio::EnableCsl(uint32_t aCslPeriod, const otExtAddress *aExtAddr)
 {
     return otPlatRadioEnableCsl(GetInstancePtr(), aCslPeriod, aExtAddr);
+}
+
+inline bool Radio::IsCslEnabled(void)
+{
+    return otPlatRadioIsCslEnabled(GetInstancePtr());
 }
 #endif
 

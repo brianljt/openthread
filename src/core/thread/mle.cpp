@@ -689,9 +689,9 @@ void Mle::SetStateChild(uint16_t aRloc16)
 #endif
 
 #if OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
-    if (Get<Mac::Mac>().IsCslEnabled())
+    if (Get<Mac::Mac>().IsAttachedCslReceiver())
     {
-        IgnoreError(Get<Radio>().EnableCsl(Get<Mac::Mac>().GetCslPeriod(), &GetParent().GetExtAddress()));
+        Get<Mac::Mac>().ActivateCslRadio(&GetParent().GetExtAddress());
         ScheduleChildUpdateRequest();
     }
 #endif
@@ -1450,7 +1450,7 @@ exit:
 
 otError Mle::AppendCslTimeout(Message &aMessage)
 {
-    OT_ASSERT(Get<Mac::Mac>().IsCslEnabled());
+    OT_ASSERT(Get<Mac::Mac>().IsAttachedCslReceiver());
     return Tlv::Append<CslTimeoutTlv>(aMessage, Get<Mac::Mac>().GetCslTimeout() == 0 ? mTimeout
                                                                                      : Get<Mac::Mac>().GetCslTimeout());
 }
@@ -2138,7 +2138,7 @@ void Mle::ScheduleMessageTransmissionTimer(void)
     case kChildUpdateRequestActive:
 #if OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
         // CSL transmitter may respond in next CSL cycle.
-        if (Get<Mac::Mac>().IsCslEnabled())
+        if (Get<Mac::Mac>().IsAttachedCslReceiver())
         {
             ExitNow(interval = Get<Mac::Mac>().GetCslPeriod() * kUsPerTenSymbols / 1000 +
                                static_cast<uint32_t>(kUnicastRetransmissionDelay));
@@ -2277,7 +2277,7 @@ otError Mle::SendChildUpdateRequest(void)
         SuccessOrExit(error = AppendLeaderData(*message));
         SuccessOrExit(error = AppendTimeout(*message, mTimeout));
 #if OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
-        if (Get<Mac::Mac>().IsCslEnabled())
+        if (Get<Mac::Mac>().IsAttachedCslReceiver())
         {
             SuccessOrExit(error = AppendCslChannel(*message));
             SuccessOrExit(error = AppendCslTimeout(*message));
@@ -2305,7 +2305,7 @@ otError Mle::SendChildUpdateRequest(void)
     if (!IsRxOnWhenIdle())
     {
 #if OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
-        Get<DataPollSender>().SetAttachMode(!Get<Mac::Mac>().IsCslEnabled());
+        Get<DataPollSender>().SetAttachMode(!Get<Mac::Mac>().IsAttachedCslReceiver());
 #else
         Get<DataPollSender>().SetAttachMode(true);
 #endif
@@ -3873,6 +3873,66 @@ exit:
     LogProcessError(kTypeLinkProbe, error);
 }
 #endif // OPENTHREAD_CONFIG_MLE_LINK_METRICS_ENABLE
+
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+void Mle::HandleSsedBeacon(const Mac::RxFrame &aFrame)
+{
+    otError           error    = OT_ERROR_NONE;
+    Child *           peerSsed = nullptr;
+    Mac::Address      macDest;
+    Mac::Address      macSource;
+    Mac::PanId        destPan;
+    const uint8_t *   cur = aFrame.GetHeaderIe(Mac::CslIe::kHeaderIeId);
+    const Mac::CslIe *csl;
+
+    VerifyOrExit(cur != nullptr, error = OT_ERROR_PARSE);
+    SuccessOrExit(error = aFrame.GetSrcAddr(macSource));
+    SuccessOrExit(error = aFrame.GetDstAddr(macDest));
+    SuccessOrExit(error = aFrame.GetDstPanId(destPan));
+
+    VerifyOrExit(mAttachState == kAttachStateIdle, error = OT_ERROR_INVALID_STATE);
+
+    // Skip none broadcast null data
+    VerifyOrExit(macDest.IsBroadcast());
+
+    // Skip null data with short or none source address
+    VerifyOrExit(macSource.IsExtended());
+
+    // Skip unmatched dest PAN ID
+    VerifyOrExit(Get<Mac::Mac>().GetPanId() == destPan);
+
+    peerSsed = Get<ChildTable>().FindChild(macSource.GetExtended(), Child::kInStateAnyExceptInvalid);
+
+    if (peerSsed == nullptr)
+    {
+        // TODO:
+        // For S2S end device, there is only one entry in its Child Table.
+        VerifyOrExit((peerSsed = Get<ChildTable>().GetNewChild()) != nullptr, error = OT_ERROR_NO_BUFS);
+
+        peerSsed->SetExtAddress(macSource.GetExtended());
+        peerSsed->GetLinkInfo().Clear();
+        peerSsed->ResetLinkFailures();
+        peerSsed->SetState(Neighbor::kStateLinkRequest);
+    }
+    else
+    {
+        VerifyOrExit(!peerSsed->IsStateValid());
+    }
+
+    // TODO: Update attach state
+
+    csl = reinterpret_cast<const Mac::CslIe *>(cur + sizeof(Mac::HeaderIe));
+
+    peerSsed->SetLastRxTimestamp(aFrame.GetTimestamp());
+    peerSsed->SetCslPeriod(csl->GetPeriod());
+    peerSsed->SetCslPhase(csl->GetPhase());
+
+    // TODO: Send Link Request
+
+exit:
+    return;
+}
+#endif
 
 void Mle::ProcessAnnounce(void)
 {
