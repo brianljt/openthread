@@ -2520,10 +2520,6 @@ otError Mle::SendLinkRequest(Child *aChild)
     SuccessOrExit(error = AppendMode(*message, mDeviceMode));
     SuccessOrExit(error = AppendLinkFrameCounter(*message));
     SuccessOrExit(error = AppendMleFrameCounter(*message));
-    SuccessOrExit(error = AppendCslChannel(*message));
-    SuccessOrExit(error = AppendCslTimeout(*message));
-    SuccessOrExit(error = AppendLeaderData(*message));
-    SuccessOrExit(error = AppendAddressRegistration(*message, kAppendAllAddresses));
 
     aChild->GenerateChallenge();
 
@@ -2559,15 +2555,12 @@ otError Mle::SendLinkAccept(const Ip6::MessageInfo &aMessageInfo,
     SuccessOrExit(error = AppendMode(*message, mDeviceMode));
     SuccessOrExit(error = AppendLinkFrameCounter(*message));
     SuccessOrExit(error = AppendMleFrameCounter(*message));
-    SuccessOrExit(error = AppendCslChannel(*message));
-    SuccessOrExit(error = AppendCslTimeout(*message));
 
     if (command == kCommandLinkAcceptAndRequest)
     {
         aChild->GenerateChallenge();
 
         SuccessOrExit(error = AppendChallenge(*message, aChild->GetChallenge(), aChild->GetChallengeSize()));
-        SuccessOrExit(error = AppendAddressRegistration(*message, kAppendAllAddresses));
 
         aChild->SetLastHeard(TimerMilli::GetNow());
     }
@@ -4078,7 +4071,6 @@ otError Mle::HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &
     uint16_t        version;
     uint16_t        sourceAddress;
     uint8_t         mode;
-    uint16_t        addressRegistrationOffset = 0;
     Mac::ExtAddress extAddr;
 
     // Challenge
@@ -4120,17 +4112,6 @@ otError Mle::HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &
         peerSsed->SetRloc16(sourceAddress);
     }
 
-    SuccessOrExit(error = HandleLeaderData(aMessage, aMessageInfo));
-
-    if (OT_ERROR_NONE == Tlv::FindTlvOffset(aMessage, Tlv::kAddressRegistration, addressRegistrationOffset))
-    {
-// TODO: remove FTD constraint
-#if OPENTHREAD_FTD
-        // Handle address registration TLV with valid peer
-        SuccessOrExit(error = Get<MleRouter>().UpdateChildAddresses(aMessage, addressRegistrationOffset, *peerSsed));
-#endif
-    }
-
     // Send Response
     SuccessOrExit(error = SendLinkAccept(aMessageInfo, peerSsed, challenge, true));
 
@@ -4147,8 +4128,6 @@ otError Mle::HandleLinkAccept(const Message &aMessage, const Ip6::MessageInfo &a
     uint16_t        version;
     uint8_t         mode;
     Challenge       response;
-    uint32_t        cslTimeout;
-    uint16_t        addressRegistrationOffset = 0;
 
     // Source Address
     SuccessOrExit(error = Tlv::Find<SourceAddressTlv>(aMessage, sourceAddress));
@@ -4162,8 +4141,6 @@ otError Mle::HandleLinkAccept(const Message &aMessage, const Ip6::MessageInfo &a
 
     VerifyOrExit(peerSsed != nullptr, error = OT_ERROR_DROP);
 
-    // TODO: Verify peer state
-
     // Mode
     SuccessOrExit(error = Tlv::Find<ModeTlv>(aMessage, mode));
     VerifyOrExit(!(mode & (DeviceMode::kModeFullThreadDevice | DeviceMode::kModeRxOnWhenIdle)), error = OT_ERROR_DROP);
@@ -4176,9 +4153,6 @@ otError Mle::HandleLinkAccept(const Message &aMessage, const Ip6::MessageInfo &a
     SuccessOrExit(error = Tlv::Find<VersionTlv>(aMessage, version));
     VerifyOrExit(version >= OT_THREAD_VERSION_1_2, error = OT_ERROR_PARSE);
 
-    // CSL Timeout TLV
-    SuccessOrExit(error = Tlv::Find<CslTimeoutTlv>(aMessage, cslTimeout));
-
     // Finish link synchronization
     peerSsed->SetExtAddress(extAddr);
     peerSsed->SetVersion(version);
@@ -4188,23 +4162,12 @@ otError Mle::HandleLinkAccept(const Message &aMessage, const Ip6::MessageInfo &a
     peerSsed->GetLinkInfo().Clear();
     peerSsed->GetLinkInfo().AddRss(aMessageInfo.GetThreadLinkInfo()->GetRss());
     peerSsed->ResetLinkFailures();
-    peerSsed->SetCslTimeout(cslTimeout);
     peerSsed->SetState(Neighbor::kStateValid);
 
     // Send Link Accept
     if (aRequest)
     {
         Challenge challenge;
-
-        if (OT_ERROR_NONE == Tlv::FindTlvOffset(aMessage, Tlv::kAddressRegistration, addressRegistrationOffset))
-        {
-// TODO: remove FTD constraint
-#if OPENTHREAD_FTD
-            // Handle address registration TLV with valid peer
-            SuccessOrExit(error =
-                              Get<MleRouter>().UpdateChildAddresses(aMessage, addressRegistrationOffset, *peerSsed));
-#endif
-        }
 
         // Challenge
         SuccessOrExit(error = ReadChallenge(aMessage, challenge));
@@ -4261,8 +4224,6 @@ void Mle::HandleSsedBeacon(const Mac::RxFrame &aFrame)
     SuccessOrExit(error = aFrame.GetSrcAddr(macSource));
     SuccessOrExit(error = aFrame.GetDstAddr(macDest));
     SuccessOrExit(error = aFrame.GetDstPanId(destPan));
-
-    VerifyOrExit(mAttachState == kAttachStateIdle, error = OT_ERROR_INVALID_STATE);
 
     // Skip none broadcast null data
     VerifyOrExit(macDest.IsBroadcast());
