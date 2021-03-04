@@ -1456,13 +1456,6 @@ otError Mle::AppendCslTimeout(Message &aMessage)
 }
 #endif // OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
 
-#if OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
-otError Mle::AppendCslAccuracy(Message &aMessage)
-{
-    return Tlv::Append<CslAccuracyTlv>(aMessage, static_cast<uint8_t>(otPlatTimeGetXtalAccuracy()));
-}
-#endif
-
 void Mle::HandleNotifierEvents(Events aEvents)
 {
     VerifyOrExit(!IsDisabled());
@@ -2529,7 +2522,6 @@ otError Mle::SendLinkRequest(Child *aChild)
     SuccessOrExit(error = AppendMleFrameCounter(*message));
     SuccessOrExit(error = AppendCslChannel(*message));
     SuccessOrExit(error = AppendCslTimeout(*message));
-    SuccessOrExit(error = AppendCslAccuracy(*message));
     SuccessOrExit(error = AppendLeaderData(*message));
     SuccessOrExit(error = AppendAddressRegistration(*message, kAppendAllAddresses));
 
@@ -2569,7 +2561,6 @@ otError Mle::SendLinkAccept(const Ip6::MessageInfo &aMessageInfo,
     SuccessOrExit(error = AppendMleFrameCounter(*message));
     SuccessOrExit(error = AppendCslChannel(*message));
     SuccessOrExit(error = AppendCslTimeout(*message));
-    SuccessOrExit(error = AppendCslAccuracy(*message));
 
     if (command == kCommandLinkAcceptAndRequest)
     {

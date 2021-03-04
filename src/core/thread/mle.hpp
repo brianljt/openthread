@@ -1274,19 +1274,6 @@ protected:
     otError AppendCslTimeout(Message &aMessage);
 #endif // (OPENTHREAD_FTD && OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE) || OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
 
-#if OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
-    /**
-     * This method appends a CSL Accuracy TLV to a message.
-     *
-     * @param[in]  aMessage  A reference to the message.
-     *
-     * @retval OT_ERROR_NONE     Successfully appended the CSL Accuracy TLV.
-     * @retval OT_ERROR_NO_BUFS  Insufficient buffers available to append the CSL Accuracy TLV.
-     *
-     */
-    otError AppendCslAccuracy(Message &aMessage);
-#endif
-
     /**
      * This method appends a Active Timestamp TLV to a message.
      *

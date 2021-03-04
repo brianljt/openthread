@@ -104,7 +104,6 @@ public:
         kDiscovery             = 26, ///< Thread Discovery TLV
         kCslChannel            = 80, ///< CSL Channel TLV
         kCslTimeout            = 85, ///< CSL Timeout TLV
-        kCslAccuracy           = 86, ///< CSL Accuracy TLV
         kLinkMetricsQuery      = 87, ///< Link Metrics Query TLV
         kLinkMetricsManagement = 88, ///< Link Metrics Management TLV
         kLinkMetricsReport     = 89, ///< Link Metrics Report TLV
@@ -223,12 +222,6 @@ typedef UintTlvInfo<Tlv::kPanId, uint16_t> PanIdTlv;
  *
  */
 typedef UintTlvInfo<Tlv::kCslTimeout, uint32_t> CslTimeoutTlv;
-
-/**
- * This class defines CSL Accuracy TLV constants and types.
- *
- */
-typedef UintTlvInfo<Tlv::kCslAccuracy, uint8_t> CslAccuracyTlv;
 
 /**
  * This class defines XTAL Accuracy TLV constants and types.
