@@ -1745,16 +1745,15 @@ private:
     void HandleDataResponse(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, const Neighbor *aNeighbor);
     void HandleParentResponse(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, uint32_t aKeySequence);
     void HandleAnnounce(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
+#if OPENTHREAD_FTD || OPENTHREAD_MTD_S2S
     void HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, Neighbor *aNeighbor);
     void HandleLinkAccept(const Message &         aMessage,
                           const Ip6::MessageInfo &aMessageInfo,
                           uint32_t                aKeySequence,
-                          Neighbor *              aNeighbor);
-    void HandleLinkAcceptAndRequest(const Message &         aMessage,
-                                    const Ip6::MessageInfo &aMessageInfo,
-                                    uint32_t                aKeySequence,
-                                    Neighbor *              aNeighbor);
+                          Neighbor *              aNeighbor,
+                          bool                    aRequest = false);
     void HandleDataRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, const Neighbor *aNeighbor);
+#endif
 #if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
     otError HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
     otError HandleLinkAccept(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, bool aRequest);
@@ -1787,7 +1786,11 @@ private:
     otError SendLinkAccept(const Ip6::MessageInfo &aMessageInfo,
                            Child *                 aChild,
                            const Challenge &       aChallenge,
-                           bool                    aRequest);
+                           bool                    aRequest = false);
+    otError SendLinkAcceptAndRequest(const Ip6::MessageInfo &aMessageInfo, Child *aChild, const Challenge &aChallenge)
+    {
+        return SendLinkAccept(aMessageInfo, aChild, aChallenge, /* aRequest */ true);
+    }
 #endif
     uint32_t Reattach(void);
 

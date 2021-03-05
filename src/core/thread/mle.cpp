@@ -2870,6 +2870,7 @@ void Mle::HandleUdpReceive(Message &aMessage, const Ip6::MessageInfo &aMessageIn
 
         break;
 
+#if OPENTHREAD_FTD || OPENTHREAD_MTD_S2S
     case kCommandLinkRequest:
         HandleLinkRequest(aMessage, aMessageInfo, neighbor);
         break;
@@ -2879,12 +2880,13 @@ void Mle::HandleUdpReceive(Message &aMessage, const Ip6::MessageInfo &aMessageIn
         break;
 
     case kCommandLinkAcceptAndRequest:
-        HandleLinkAcceptAndRequest(aMessage, aMessageInfo, keySequence, neighbor);
+        HandleLinkAccept(aMessage, aMessageInfo, keySequence, neighbor, /* aRequest */ true);
         break;
 
     case kCommandDataRequest:
         HandleDataRequest(aMessage, aMessageInfo, neighbor);
         break;
+#endif
 
 #if OPENTHREAD_FTD
     case kCommandParentRequest:
@@ -3946,6 +3948,7 @@ exit:
 }
 #endif // OPENTHREAD_CONFIG_MLE_LINK_METRICS_ENABLE
 
+#if OPENTHREAD_FTD || OPENTHREAD_MTD_S2S
 void Mle::HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, Neighbor *aNeighbor)
 {
     otError error = OT_ERROR_NONE;
@@ -3974,7 +3977,8 @@ void Mle::HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &aMe
 void Mle::HandleLinkAccept(const Message &         aMessage,
                            const Ip6::MessageInfo &aMessageInfo,
                            uint32_t                aKeySequence,
-                           Neighbor *              aNeighbor)
+                           Neighbor *              aNeighbor,
+                           bool                    aRequest)
 {
     otError  error = OT_ERROR_NONE;
     uint16_t sourceAddress;
@@ -3985,56 +3989,24 @@ void Mle::HandleLinkAccept(const Message &         aMessage,
     // Source Address
     SuccessOrExit(error = Tlv::Find<SourceAddressTlv>(aMessage, sourceAddress));
 
-    Log(kMessageReceive, kTypeLinkAccept, aMessageInfo.GetPeerAddr(), sourceAddress);
+    Log(kMessageReceive, aRequest ? kTypeLinkAcceptAndRequest : kTypeLinkAccept, aMessageInfo.GetPeerAddr(),
+        sourceAddress);
 
 #if OPENTHREAD_FTD
     if (IsActiveRouter(sourceAddress))
     {
-        error = Get<MleRouter>().HandleLinkAccept(aMessage, aMessageInfo, aKeySequence, aNeighbor, false);
+        error = Get<MleRouter>().HandleLinkAccept(aMessage, aMessageInfo, aKeySequence, aNeighbor, aRequest);
     }
     else
 #endif
     {
 #if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
-        error = HandleLinkAccept(aMessage, aMessageInfo, false);
+        error = HandleLinkAccept(aMessage, aMessageInfo, aRequest);
 #endif
     }
 
 exit:
     LogProcessError(kTypeLinkAccept, error);
-}
-
-void Mle::HandleLinkAcceptAndRequest(const Message &         aMessage,
-                                     const Ip6::MessageInfo &aMessageInfo,
-                                     uint32_t                aKeySequence,
-                                     Neighbor *              aNeighbor)
-{
-    otError  error = OT_ERROR_NONE;
-    uint16_t sourceAddress;
-
-    OT_UNUSED_VARIABLE(aKeySequence);
-    OT_UNUSED_VARIABLE(aNeighbor);
-
-    // Source Address
-    SuccessOrExit(error = Tlv::Find<SourceAddressTlv>(aMessage, sourceAddress));
-
-    Log(kMessageReceive, kTypeLinkAcceptAndRequest, aMessageInfo.GetPeerAddr(), sourceAddress);
-
-#if OPENTHREAD_FTD
-    if (IsActiveRouter(sourceAddress))
-    {
-        error = Get<MleRouter>().HandleLinkAccept(aMessage, aMessageInfo, aKeySequence, aNeighbor, true);
-    }
-    else
-#endif
-    {
-#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
-        error = HandleLinkAccept(aMessage, aMessageInfo, true);
-#endif
-    }
-
-exit:
-    LogProcessError(kTypeLinkAcceptAndRequest, error);
 }
 
 void Mle::HandleDataRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, const Neighbor *aNeighbor)
@@ -4061,6 +4033,7 @@ void Mle::HandleDataRequest(const Message &aMessage, const Ip6::MessageInfo &aMe
 
     LogProcessError(kTypeDataRequest, error);
 }
+#endif
 
 #if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
 otError Mle::HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo)
@@ -4113,7 +4086,7 @@ otError Mle::HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &
     }
 
     // Send Response
-    SuccessOrExit(error = SendLinkAccept(aMessageInfo, peerSsed, challenge, true));
+    SuccessOrExit(error = SendLinkAcceptAndRequest(aMessageInfo, peerSsed, challenge));
 
 exit:
     return error;
@@ -4171,7 +4144,7 @@ otError Mle::HandleLinkAccept(const Message &aMessage, const Ip6::MessageInfo &a
 
         // Challenge
         SuccessOrExit(error = ReadChallenge(aMessage, challenge));
-        SuccessOrExit(error = SendLinkAccept(aMessageInfo, peerSsed, challenge, false));
+        SuccessOrExit(error = SendLinkAccept(aMessageInfo, peerSsed, challenge));
     }
 
     // TODO: SSED-SSED link established, start CSL sampling
