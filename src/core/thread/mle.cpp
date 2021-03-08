@@ -2504,6 +2504,78 @@ exit:
 }
 #endif // OPENTHREAD_CONFIG_MLE_LINK_METRICS_ENABLE
 
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+otError Mle::SendLinkRequest(Child *aChild)
+{
+    otError      error = OT_ERROR_NONE;
+    Message *    message;
+    Ip6::Address destination;
+
+    destination.Clear();
+
+    VerifyOrExit((message = NewMleMessage()) != nullptr, error = OT_ERROR_NO_BUFS);
+    SuccessOrExit(error = AppendHeader(*message, kCommandLinkRequest));
+    SuccessOrExit(error = AppendVersion(*message));
+    SuccessOrExit(error = AppendSourceAddress(*message));
+    SuccessOrExit(error = AppendMode(*message, mDeviceMode));
+    SuccessOrExit(error = AppendLinkFrameCounter(*message));
+    SuccessOrExit(error = AppendMleFrameCounter(*message));
+
+    aChild->GenerateChallenge();
+
+    SuccessOrExit(error = AppendChallenge(*message, aChild->GetChallenge(), aChild->GetChallengeSize()));
+
+    destination.SetToLinkLocalAddress(aChild->GetExtAddress());
+
+    SuccessOrExit(error = SendMessage(*message, destination));
+
+    Log(kMessageSend, kTypeLinkRequest, destination);
+
+exit:
+    FreeMessageOnError(message, error);
+    return error;
+}
+
+otError Mle::SendLinkAccept(const Ip6::MessageInfo &aMessageInfo,
+                            Child *                 aChild,
+                            const Challenge &       aChallenge,
+                            bool                    aRequest)
+{
+    otError  error = OT_ERROR_NONE;
+    Message *message;
+    Command  command;
+
+    command = aRequest ? kCommandLinkAcceptAndRequest : kCommandLinkAccept;
+
+    VerifyOrExit((message = NewMleMessage()) != nullptr, error = OT_ERROR_NO_BUFS);
+    SuccessOrExit(error = AppendHeader(*message, command));
+    SuccessOrExit(error = AppendVersion(*message));
+    SuccessOrExit(error = AppendSourceAddress(*message));
+    SuccessOrExit(error = AppendResponse(*message, aChallenge));
+    SuccessOrExit(error = AppendMode(*message, mDeviceMode));
+    SuccessOrExit(error = AppendLinkFrameCounter(*message));
+    SuccessOrExit(error = AppendMleFrameCounter(*message));
+
+    if (command == kCommandLinkAcceptAndRequest)
+    {
+        aChild->GenerateChallenge();
+
+        SuccessOrExit(error = AppendChallenge(*message, aChild->GetChallenge(), aChild->GetChallengeSize()));
+
+        aChild->SetLastHeard(TimerMilli::GetNow());
+    }
+
+    message->SetDirectTransmission();
+    SuccessOrExit(error = SendMessage(*message, aMessageInfo.GetPeerAddr()));
+
+    Log(kMessageSend, kTypeLinkAccept, aMessageInfo.GetPeerAddr());
+
+exit:
+    FreeMessageOnError(message, error);
+    return error;
+}
+#endif // OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+
 otError Mle::SendMessage(Message &aMessage, const Ip6::Address &aDestination)
 {
     otError          error = OT_ERROR_NONE;
@@ -2798,23 +2870,25 @@ void Mle::HandleUdpReceive(Message &aMessage, const Ip6::MessageInfo &aMessageIn
 
         break;
 
-#if OPENTHREAD_FTD
+#if OPENTHREAD_FTD || OPENTHREAD_MTD_S2S
     case kCommandLinkRequest:
-        Get<MleRouter>().HandleLinkRequest(aMessage, aMessageInfo, neighbor);
+        HandleLinkRequest(aMessage, aMessageInfo, neighbor);
         break;
 
     case kCommandLinkAccept:
-        Get<MleRouter>().HandleLinkAccept(aMessage, aMessageInfo, keySequence, neighbor);
+        HandleLinkAccept(aMessage, aMessageInfo, keySequence, neighbor);
         break;
 
     case kCommandLinkAcceptAndRequest:
-        Get<MleRouter>().HandleLinkAcceptAndRequest(aMessage, aMessageInfo, keySequence, neighbor);
+        HandleLinkAccept(aMessage, aMessageInfo, keySequence, neighbor, /* aRequest */ true);
         break;
 
     case kCommandDataRequest:
-        Get<MleRouter>().HandleDataRequest(aMessage, aMessageInfo, neighbor);
+        HandleDataRequest(aMessage, aMessageInfo, neighbor);
         break;
+#endif
 
+#if OPENTHREAD_FTD
     case kCommandParentRequest:
         Get<MleRouter>().HandleParentRequest(aMessage, aMessageInfo);
         break;
@@ -3874,7 +3948,241 @@ exit:
 }
 #endif // OPENTHREAD_CONFIG_MLE_LINK_METRICS_ENABLE
 
+#if OPENTHREAD_FTD || OPENTHREAD_MTD_S2S
+void Mle::HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, Neighbor *aNeighbor)
+{
+    otError error = OT_ERROR_NONE;
+
+    OT_UNUSED_VARIABLE(aMessage);
+    OT_UNUSED_VARIABLE(aNeighbor);
+
+    Log(kMessageReceive, kTypeLinkRequest, aMessageInfo.GetPeerAddr());
+
+#if OPENTHREAD_FTD
+    if (IsRouterOrLeader())
+    {
+        error = Get<MleRouter>().HandleLinkRequest(aMessage, aMessageInfo, aNeighbor);
+    }
+    else
+#endif
+    {
 #if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+        error = HandleLinkRequest(aMessage, aMessageInfo);
+#endif
+    }
+
+    LogProcessError(kTypeLinkRequest, error);
+}
+
+void Mle::HandleLinkAccept(const Message &         aMessage,
+                           const Ip6::MessageInfo &aMessageInfo,
+                           uint32_t                aKeySequence,
+                           Neighbor *              aNeighbor,
+                           bool                    aRequest)
+{
+    otError  error = OT_ERROR_NONE;
+    uint16_t sourceAddress;
+
+    OT_UNUSED_VARIABLE(aKeySequence);
+    OT_UNUSED_VARIABLE(aNeighbor);
+
+    // Source Address
+    SuccessOrExit(error = Tlv::Find<SourceAddressTlv>(aMessage, sourceAddress));
+
+    Log(kMessageReceive, aRequest ? kTypeLinkAcceptAndRequest : kTypeLinkAccept, aMessageInfo.GetPeerAddr(),
+        sourceAddress);
+
+#if OPENTHREAD_FTD
+    if (IsActiveRouter(sourceAddress))
+    {
+        error = Get<MleRouter>().HandleLinkAccept(aMessage, aMessageInfo, aKeySequence, aNeighbor, aRequest);
+    }
+    else
+#endif
+    {
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+        error = HandleLinkAccept(aMessage, aMessageInfo, aRequest);
+#endif
+    }
+
+exit:
+    LogProcessError(kTypeLinkAccept, error);
+}
+
+void Mle::HandleDataRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, const Neighbor *aNeighbor)
+{
+    otError error = OT_ERROR_NONE;
+
+    OT_UNUSED_VARIABLE(aMessage);
+    OT_UNUSED_VARIABLE(aNeighbor);
+
+    Log(kMessageReceive, kTypeDataRequest, aMessageInfo.GetPeerAddr());
+
+#if OPENTHREAD_FTD
+    if (aNeighbor && aNeighbor->IsStateValid())
+    {
+        error = Get<MleRouter>().HandleDataRequest(aMessage, aMessageInfo);
+    }
+    else
+#endif
+    {
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+        error = HandleDataRequest(aMessage, aMessageInfo);
+#endif
+    }
+
+    LogProcessError(kTypeDataRequest, error);
+}
+#endif
+
+#if OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
+otError Mle::HandleLinkRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo)
+{
+    otError         error    = OT_ERROR_NONE;
+    Child *         peerSsed = nullptr;
+    Challenge       challenge;
+    uint16_t        version;
+    uint16_t        sourceAddress;
+    uint8_t         mode;
+    Mac::ExtAddress extAddr;
+
+    // Challenge
+    SuccessOrExit(error = ReadChallenge(aMessage, challenge));
+
+    // Version
+    SuccessOrExit(error = Tlv::Find<VersionTlv>(aMessage, version));
+    VerifyOrExit(version >= OT_THREAD_VERSION_1_2, error = OT_ERROR_DROP);
+
+    // Mode
+    SuccessOrExit(error = Tlv::Find<ModeTlv>(aMessage, mode));
+    VerifyOrExit(!(mode & (DeviceMode::kModeFullThreadDevice | DeviceMode::kModeRxOnWhenIdle)), error = OT_ERROR_DROP);
+
+    // Source Address
+    SuccessOrExit(error = Tlv::Find<SourceAddressTlv>(aMessage, sourceAddress));
+
+    if (IsActiveRouter(sourceAddress))
+    {
+        // Ignore router's Link Request
+        ExitNow(error = OT_ERROR_DROP);
+    }
+
+    // Find Child
+    aMessageInfo.GetPeerAddr().GetIid().ConvertToExtAddress(extAddr);
+
+    peerSsed = Get<ChildTable>().FindChild(extAddr, Child::kInStateAnyExceptInvalid);
+
+    if (peerSsed == nullptr)
+    {
+        VerifyOrExit((peerSsed = Get<ChildTable>().GetNewChild()) != nullptr, error = OT_ERROR_NO_BUFS);
+
+        // MAC Address
+        peerSsed->SetExtAddress(extAddr);
+        peerSsed->GetLinkInfo().Clear();
+        peerSsed->GetLinkInfo().AddRss(aMessageInfo.GetThreadLinkInfo()->GetRss());
+        peerSsed->ResetLinkFailures();
+        peerSsed->SetState(Neighbor::kStateLinkRequest);
+        peerSsed->SetDeviceMode(DeviceMode(DeviceMode::kModeRxOnWhenIdle));
+        peerSsed->SetRloc16(sourceAddress);
+    }
+
+    // Send Response
+    SuccessOrExit(error = SendLinkAcceptAndRequest(aMessageInfo, peerSsed, challenge));
+
+exit:
+    return error;
+}
+
+otError Mle::HandleLinkAccept(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo, bool aRequest)
+{
+    otError         error    = OT_ERROR_NONE;
+    Child *         peerSsed = nullptr;
+    Mac::ExtAddress extAddr;
+    uint16_t        sourceAddress;
+    uint16_t        version;
+    uint8_t         mode;
+    Challenge       response;
+
+    // Source Address
+    SuccessOrExit(error = Tlv::Find<SourceAddressTlv>(aMessage, sourceAddress));
+
+    // Ignore router's Link Request
+    VerifyOrExit(!IsActiveRouter(sourceAddress), error = OT_ERROR_DROP);
+
+    // Find Child
+    aMessageInfo.GetPeerAddr().GetIid().ConvertToExtAddress(extAddr);
+    peerSsed = Get<ChildTable>().FindChild(extAddr, Child::kInStateAnyExceptInvalid);
+
+    VerifyOrExit(peerSsed != nullptr, error = OT_ERROR_DROP);
+
+    // Mode
+    SuccessOrExit(error = Tlv::Find<ModeTlv>(aMessage, mode));
+    VerifyOrExit(!(mode & (DeviceMode::kModeFullThreadDevice | DeviceMode::kModeRxOnWhenIdle)), error = OT_ERROR_DROP);
+
+    // Verify response
+    SuccessOrExit(error = ReadResponse(aMessage, response));
+    VerifyOrExit(response.Matches(peerSsed->GetChallenge(), peerSsed->GetChallengeSize()), error = OT_ERROR_SECURITY);
+
+    // Version
+    SuccessOrExit(error = Tlv::Find<VersionTlv>(aMessage, version));
+    VerifyOrExit(version >= OT_THREAD_VERSION_1_2, error = OT_ERROR_PARSE);
+
+    // Finish link synchronization
+    peerSsed->SetExtAddress(extAddr);
+    peerSsed->SetVersion(version);
+    peerSsed->SetRloc16(sourceAddress);
+    peerSsed->SetLastHeard(TimerMilli::GetNow());
+    peerSsed->SetDeviceMode(DeviceMode(mode));
+    peerSsed->GetLinkInfo().Clear();
+    peerSsed->GetLinkInfo().AddRss(aMessageInfo.GetThreadLinkInfo()->GetRss());
+    peerSsed->ResetLinkFailures();
+    peerSsed->SetState(Neighbor::kStateValid);
+
+    // Send Link Accept
+    if (aRequest)
+    {
+        Challenge challenge;
+
+        // Challenge
+        SuccessOrExit(error = ReadChallenge(aMessage, challenge));
+        SuccessOrExit(error = SendLinkAccept(aMessageInfo, peerSsed, challenge));
+    }
+
+    // TODO: SSED-SSED link established, start CSL sampling
+
+exit:
+    return error;
+}
+
+otError Mle::HandleDataRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo)
+{
+    otError       error = OT_ERROR_NONE;
+    RequestedTlvs requestedTlvs;
+    Message *     message = nullptr;
+
+    VerifyOrExit((message = NewMleMessage()) != nullptr, error = OT_ERROR_NO_BUFS);
+
+    // TLV Request
+    SuccessOrExit(error = FindTlvRequest(aMessage, requestedTlvs));
+    VerifyOrExit(requestedTlvs.mNumTlvs <= 1, error = OT_ERROR_PARSE);
+    VerifyOrExit(requestedTlvs.mTlvs[0] == Tlv::kNetworkData, error = OT_ERROR_PARSE);
+
+    // Prepare Data Response TLV
+    message->SetSubType(Message::kSubTypeMleDataResponse);
+    SuccessOrExit(error = AppendHeader(*message, kCommandDataResponse));
+    SuccessOrExit(error = AppendLeaderData(*message));
+    SuccessOrExit(error = AppendNetworkData(*message, false));
+
+    // Send
+    SuccessOrExit(error = SendMessage(*message, aMessageInfo.GetPeerAddr()));
+    Log(kMessageSend, kTypeDataResponse, aMessageInfo.GetPeerAddr());
+
+    LogProcessError(kTypeDataRequest, error);
+
+exit:
+    FreeMessageOnError(message, error);
+    return error;
+}
+
 void Mle::HandleSsedBeacon(const Mac::RxFrame &aFrame)
 {
     otError           error    = OT_ERROR_NONE;
@@ -3889,8 +4197,6 @@ void Mle::HandleSsedBeacon(const Mac::RxFrame &aFrame)
     SuccessOrExit(error = aFrame.GetSrcAddr(macSource));
     SuccessOrExit(error = aFrame.GetDstAddr(macDest));
     SuccessOrExit(error = aFrame.GetDstPanId(destPan));
-
-    VerifyOrExit(mAttachState == kAttachStateIdle, error = OT_ERROR_INVALID_STATE);
 
     // Skip none broadcast null data
     VerifyOrExit(macDest.IsBroadcast());
@@ -3927,12 +4233,12 @@ void Mle::HandleSsedBeacon(const Mac::RxFrame &aFrame)
     peerSsed->SetCslPeriod(csl->GetPeriod());
     peerSsed->SetCslPhase(csl->GetPhase());
 
-    // TODO: Send Link Request
+    SuccessOrExit(error = SendLinkRequest(peerSsed));
 
 exit:
     return;
 }
-#endif
+#endif // OPENTHREAD_CONFIG_MAC_SSED_TO_SSED_LINK_ENABLE
 
 void Mle::ProcessAnnounce(void)
 {
@@ -4199,43 +4505,42 @@ const char *Mle::MessageActionToString(MessageAction aAction)
 const char *Mle::MessageTypeToString(MessageType aType)
 {
     static const char *const kMessageTypeStrings[] = {
-        "Advertisement",         // (0)  kTypeAdvertisement
-        "Announce",              // (1)  kTypeAnnounce
-        "Child ID Request",      // (2)  kTypeChildIdRequest
-        "Child ID Request",      // (3)  kTypeChildIdRequestShort
-        "Child ID Response",     // (4)  kTypeChildIdResponse
-        "Child Update Request",  // (5)  kTypeChildUpdateRequestOfParent
-        "Child Update Response", // (6)  kTypeChildUpdateResponseOfParent
-        "Data Request",          // (7)  kTypeDataRequest
-        "Data Response",         // (8)  kTypeDataResponse
-        "Discovery Request",     // (9)  kTypeDiscoveryRequest
-        "Discovery Response",    // (10) kTypeDiscoveryResponse
-        "delayed message",       // (11) kTypeGenericDelayed
-        "UDP",                   // (12) kTypeGenericUdp
-        "Parent Request",        // (13) kTypeParentRequestToRouters
-        "Parent Request",        // (14) kTypeParentRequestToRoutersReeds
-        "Parent Response",       // (15) kTypeParentResponse
+        "Advertisement",           // (0)  kTypeAdvertisement
+        "Announce",                // (1)  kTypeAnnounce
+        "Child ID Request",        // (2)  kTypeChildIdRequest
+        "Child ID Request",        // (3)  kTypeChildIdRequestShort
+        "Child ID Response",       // (4)  kTypeChildIdResponse
+        "Child Update Request",    // (5)  kTypeChildUpdateRequestOfParent
+        "Child Update Response",   // (6)  kTypeChildUpdateResponseOfParent
+        "Data Request",            // (7)  kTypeDataRequest
+        "Data Response",           // (8)  kTypeDataResponse
+        "Discovery Request",       // (9)  kTypeDiscoveryRequest
+        "Discovery Response",      // (10) kTypeDiscoveryResponse
+        "delayed message",         // (11) kTypeGenericDelayed
+        "UDP",                     // (12) kTypeGenericUdp
+        "Parent Request",          // (13) kTypeParentRequestToRouters
+        "Parent Request",          // (14) kTypeParentRequestToRoutersReeds
+        "Parent Response",         // (15) kTypeParentResponse
+        "Link Accept",             // (16) kTypeLinkAccept
+        "Link Accept and Request", // (17) kTypeLinkAcceptAndRequest
+        "Link Request",            // (18) kTypeLinkRequest
 #if OPENTHREAD_FTD
-        "Address Release",         // (16) kTypeAddressRelease
-        "Address Release Reply",   // (17) kTypeAddressReleaseReply
-        "Address Reply",           // (18) kTypeAddressReply
-        "Address Solicit",         // (19) kTypeAddressSolicit
-        "Child Update Request",    // (20) kTypeChildUpdateRequestOfChild
-        "Child Update Response",   // (21) kTypeChildUpdateResponseOfChild
-        "Child Update Response",   // (22) kTypeChildUpdateResponseOfUnknownChild
-        "Link Accept",             // (23) kTypeLinkAccept
-        "Link Accept and Request", // (24) kTypeLinkAcceptAndRequest
-        "Link Reject",             // (25) kTypeLinkReject
-        "Link Request",            // (26) kTypeLinkRequest
-        "Parent Request",          // (27) kTypeParentRequest
+        "Address Release",       // (19) kTypeAddressRelease
+        "Address Release Reply", // (20) kTypeAddressReleaseReply
+        "Address Reply",         // (21) kTypeAddressReply
+        "Address Solicit",       // (22) kTypeAddressSolicit
+        "Child Update Request",  // (23) kTypeChildUpdateRequestOfChild
+        "Child Update Response", // (24) kTypeChildUpdateResponseOfChild
+        "Child Update Response", // (25) kTypeChildUpdateResponseOfUnknownChild
+        "Parent Request",        // (26) kTypeParentRequest
 #if OPENTHREAD_CONFIG_TIME_SYNC_ENABLE
-        "Time Sync", // (28) kTypeTimeSync
+        "Time Sync", // (27) kTypeTimeSync
 #endif
 #endif
 #if OPENTHREAD_CONFIG_MLE_LINK_METRICS_ENABLE
-        "Link Metrics Management Request",  // (29) kTypeLinkMetricsManagementRequest
-        "Link Metrics Management Response", // (30) kTypeLinkMetricsManagementResponse
-        "Link Probe",                       // (31) kTypeLinkProbe
+        "Link Metrics Management Request",  // (28) kTypeLinkMetricsManagementRequest
+        "Link Metrics Management Response", // (29) kTypeLinkMetricsManagementResponse
+        "Link Probe",                       // (30) kTypeLinkProbe
 #endif
     };
 
@@ -4255,38 +4560,37 @@ const char *Mle::MessageTypeToString(MessageType aType)
     static_assert(kTypeParentRequestToRouters == 13, "kTypeParentRequestToRouters value is incorrect");
     static_assert(kTypeParentRequestToRoutersReeds == 14, "kTypeParentRequestToRoutersReeds value is incorrect");
     static_assert(kTypeParentResponse == 15, "kTypeParentResponse value is incorrect");
+    static_assert(kTypeLinkAccept == 16, "kTypeLinkAccept value is incorrect");
+    static_assert(kTypeLinkAcceptAndRequest == 17, "kTypeLinkAcceptAndRequest value is incorrect");
+    static_assert(kTypeLinkRequest == 18, "kTypeLinkRequest value is incorrect");
 #if OPENTHREAD_FTD
-    static_assert(kTypeAddressRelease == 16, "kTypeAddressRelease value is incorrect");
-    static_assert(kTypeAddressReleaseReply == 17, "kTypeAddressReleaseReply value is incorrect");
-    static_assert(kTypeAddressReply == 18, "kTypeAddressReply value is incorrect");
-    static_assert(kTypeAddressSolicit == 19, "kTypeAddressSolicit value is incorrect");
-    static_assert(kTypeChildUpdateRequestOfChild == 20, "kTypeChildUpdateRequestOfChild value is incorrect");
-    static_assert(kTypeChildUpdateResponseOfChild == 21, "kTypeChildUpdateResponseOfChild value is incorrect");
-    static_assert(kTypeChildUpdateResponseOfUnknownChild == 22, "kTypeChildUpdateResponseOfUnknownChild is incorrect");
-    static_assert(kTypeLinkAccept == 23, "kTypeLinkAccept value is incorrect");
-    static_assert(kTypeLinkAcceptAndRequest == 24, "kTypeLinkAcceptAndRequest value is incorrect");
-    static_assert(kTypeLinkReject == 25, "kTypeLinkReject value is incorrect");
-    static_assert(kTypeLinkRequest == 26, "kTypeLinkRequest value is incorrect");
-    static_assert(kTypeParentRequest == 27, "kTypeParentRequest value is incorrect");
+    static_assert(kTypeAddressRelease == 19, "kTypeAddressRelease value is incorrect");
+    static_assert(kTypeAddressReleaseReply == 20, "kTypeAddressReleaseReply value is incorrect");
+    static_assert(kTypeAddressReply == 21, "kTypeAddressReply value is incorrect");
+    static_assert(kTypeAddressSolicit == 22, "kTypeAddressSolicit value is incorrect");
+    static_assert(kTypeChildUpdateRequestOfChild == 23, "kTypeChildUpdateRequestOfChild value is incorrect");
+    static_assert(kTypeChildUpdateResponseOfChild == 24, "kTypeChildUpdateResponseOfChild value is incorrect");
+    static_assert(kTypeChildUpdateResponseOfUnknownChild == 25, "kTypeChildUpdateResponseOfUnknownChild is incorrect");
+    static_assert(kTypeParentRequest == 26, "kTypeParentRequest value is incorrect");
 #if OPENTHREAD_CONFIG_TIME_SYNC_ENABLE
-    static_assert(kTypeTimeSync == 28, "kTypeTimeSync value is incorrect");
-#if OPENTHREAD_CONFIG_MLE_LINK_METRICS_ENABLE
-    static_assert(kTypeLinkMetricsManagementRequest == 29, "kTypeLinkMetricsManagementRequest value is incorrect)");
-    static_assert(kTypeLinkMetricsManagementResponse == 30, "kTypeLinkMetricsManagementResponse value is incorrect)");
-    static_assert(kTypeLinkProbe == 31, "kTypeLinkProbe value is incorrect)");
-#endif
-#else // OPENTHREAD_CONFIG_TIME_SYNC_ENABLE
+    static_assert(kTypeTimeSync == 27, "kTypeTimeSync value is incorrect");
 #if OPENTHREAD_CONFIG_MLE_LINK_METRICS_ENABLE
     static_assert(kTypeLinkMetricsManagementRequest == 28, "kTypeLinkMetricsManagementRequest value is incorrect)");
     static_assert(kTypeLinkMetricsManagementResponse == 29, "kTypeLinkMetricsManagementResponse value is incorrect)");
     static_assert(kTypeLinkProbe == 30, "kTypeLinkProbe value is incorrect)");
 #endif
+#else // OPENTHREAD_CONFIG_TIME_SYNC_ENABLE
+#if OPENTHREAD_CONFIG_MLE_LINK_METRICS_ENABLE
+    static_assert(kTypeLinkMetricsManagementRequest == 27, "kTypeLinkMetricsManagementRequest value is incorrect)");
+    static_assert(kTypeLinkMetricsManagementResponse == 28, "kTypeLinkMetricsManagementResponse value is incorrect)");
+    static_assert(kTypeLinkProbe == 29, "kTypeLinkProbe value is incorrect)");
+#endif
 #endif // OPENTHREAD_CONFIG_TIME_SYNC_ENABLE
 #else  // OPENTHREAD_FTD
 #if OPENTHREAD_CONFIG_MLE_LINK_METRICS_ENABLE
-    static_assert(kTypeLinkMetricsManagementRequest == 16, "kTypeLinkMetricsManagementRequest value is incorrect)");
-    static_assert(kTypeLinkMetricsManagementResponse == 17, "kTypeLinkMetricsManagementResponse value is incorrect)");
-    static_assert(kTypeLinkProbe == 18, "kTypeLinkProbe value is incorrect)");
+    static_assert(kTypeLinkMetricsManagementRequest == 19, "kTypeLinkMetricsManagementRequest value is incorrect)");
+    static_assert(kTypeLinkMetricsManagementResponse == 20, "kTypeLinkMetricsManagementResponse value is incorrect)");
+    static_assert(kTypeLinkProbe == 21, "kTypeLinkProbe value is incorrect)");
 #endif
 #endif // OPENTHREAD_FTD
 
